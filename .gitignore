@@ -1,0 +1,5 @@
+backend/.env
+secret-key-*.csv
+backend/node_modules/
+frontend/node_modules/
+backend/prisma/*.db
