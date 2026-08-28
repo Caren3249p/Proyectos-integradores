@@ -8,25 +8,37 @@ datasource db {
 }
 
 model Usuario {
-  id_usuario       Int      @id @default(autoincrement())
-  nombre           String   @db.VarChar(100)
-  correo           String   @unique @db.VarChar(100)
-  contrasena_hash  String   @db.VarChar(255) @map("contraseña_hash")
-  rol              String   @db.VarChar(20)
-  fecha_registro   DateTime @default(now())
-  github_username  String?  @unique @db.VarChar(100)
-  plane_user_id    String?  @unique @db.VarChar(100)
+  id_usuario        Int                  @id @default(autoincrement())
+  nombre            String               @db.VarChar(100)
+  correo            String               @unique @db.VarChar(100)
+  contrasena_hash   String               @map("contraseña_hash") @db.VarChar(255)
+  rol               String               @db.VarChar(20)
+  fecha_registro    DateTime             @default(now())
+  github_username   String?              @unique @db.VarChar(100)
+  plane_user_id     String?              @unique @db.VarChar(100)
+  evaluaciones      Evaluacion[]
+  integrantes       IntegranteProyecto[]
+  proyectos_creados Proyecto[]           @relation("ProyectoCreador")
+  rubricas          Rubrica[]
 
   @@map("usuario")
 }
 
 model Proyecto {
-  id_proyecto       Int             @id @default(autoincrement())
-  titulo            String          @db.VarChar(150)
+  id_proyecto       Int                  @id @default(autoincrement())
+  titulo            String               @db.VarChar(150)
   descripcion       String?
-  id_plane_proyecto String?         @unique @db.VarChar(100)
-  porcentaje_avance Int             @default(0)
+  id_plane_proyecto String?              @unique @db.VarChar(100)
+  porcentaje_avance Int                  @default(0)
+  estado            String               @default("borrador") @db.VarChar(20)
+  id_creador        Int?
+  campos_tecnicos   CampoTecnico?
+  integrantes       IntegranteProyecto[]
+  creador           Usuario?             @relation("ProyectoCreador", fields: [id_creador], references: [id_usuario])
+  repositorio       Repositorio?
   tareas            TareaBacklog[]
+  versiones         VersionProyecto[]
+  evaluaciones      Evaluacion[]
 
   @@map("proyecto")
 }
@@ -42,4 +54,119 @@ model TareaBacklog {
 
   @@unique([id_proyecto, id_plane_issue])
   @@map("tarea_backlog")
+}
+
+model IntegranteProyecto {
+  id_proyecto Int
+  id_usuario  Int
+  proyecto    Proyecto @relation(fields: [id_proyecto], references: [id_proyecto], onDelete: Cascade)
+  usuario     Usuario  @relation(fields: [id_usuario], references: [id_usuario], onDelete: Cascade)
+
+  @@id([id_proyecto, id_usuario])
+  @@map("integrante_proyecto")
+}
+
+model VersionProyecto {
+  id_version     Int       @id @default(autoincrement())
+  id_proyecto    Int
+  numero         String    @db.VarChar(20)
+  es_final       Boolean   @default(false)
+  fecha_creacion DateTime  @default(now())
+  archivos       Archivo[]
+  proyecto       Proyecto  @relation(fields: [id_proyecto], references: [id_proyecto], onDelete: Cascade)
+
+  @@unique([id_proyecto, numero])
+  @@map("version_proyecto")
+}
+
+model Archivo {
+  id_archivo    Int             @id @default(autoincrement())
+  id_version    Int
+  nombre        String          @db.VarChar(255)
+  nombre_fisico String          @db.VarChar(255)
+  ruta          String          @db.VarChar(500)
+  extension     String          @db.VarChar(10)
+  tamano        Int
+  tipo          String?         @db.VarChar(30)
+  fecha_subida  DateTime        @default(now())
+  version       VersionProyecto @relation(fields: [id_version], references: [id_version], onDelete: Cascade)
+
+  @@map("archivo")
+}
+
+model CampoTecnico {
+  id_campos_tecnicos Int      @id @default(autoincrement())
+  id_proyecto        Int      @unique
+  lenguaje_principal String?
+  frameworks         String?
+  base_datos         String?
+  es_movil           Boolean?
+  entorno_despliegue String?
+  proyecto           Proyecto @relation(fields: [id_proyecto], references: [id_proyecto], onDelete: Cascade)
+
+  @@map("campo_tecnico")
+}
+
+model Repositorio {
+  id_repositorio Int      @id @default(autoincrement())
+  id_proyecto    Int      @unique
+  url            String   @db.VarChar(500)
+  es_privado     Boolean  @default(false)
+  proyecto       Proyecto @relation(fields: [id_proyecto], references: [id_proyecto], onDelete: Cascade)
+
+  @@map("repositorio")
+}
+
+model Rubrica {
+  id_rubrica     Int               @id @default(autoincrement())
+  nombre         String            @db.VarChar(150)
+  descripcion    String?
+  activa         Boolean           @default(true)
+  id_docente     Int
+  fecha_creacion DateTime          @default(now())
+  criterios      CriterioRubrica[]
+  evaluaciones   Evaluacion[]
+  docente        Usuario           @relation(fields: [id_docente], references: [id_usuario])
+
+  @@map("rubrica")
+}
+
+model CriterioRubrica {
+  id_criterio    Int                    @id @default(autoincrement())
+  id_rubrica     Int
+  nombre         String                 @db.VarChar(150)
+  descripcion    String
+  peso           Decimal                @db.Decimal(5, 2)
+  rubrica        Rubrica                @relation(fields: [id_rubrica], references: [id_rubrica], onDelete: Cascade)
+  calificaciones CalificacionCriterio[]
+
+  @@map("criterio_rubrica")
+}
+
+model Evaluacion {
+  id_evaluacion     Int                    @id @default(autoincrement())
+  id_proyecto       Int
+  id_rubrica        Int
+  id_docente        Int
+  nota_final        Decimal                @db.Decimal(4, 2)
+  retroalimentacion String                 @db.Text
+  estado            String                 @default("borrador") @db.VarChar(20)
+  fecha             DateTime               @default(now())
+  docente           Usuario                @relation(fields: [id_docente], references: [id_usuario])
+  rubrica           Rubrica                @relation(fields: [id_rubrica], references: [id_rubrica])
+  proyecto          Proyecto               @relation(fields: [id_proyecto], references: [id_proyecto], onDelete: Cascade)
+  calificaciones    CalificacionCriterio[]
+
+  @@map("evaluacion")
+}
+
+model CalificacionCriterio {
+  id_calificacion Int             @id @default(autoincrement())
+  id_evaluacion   Int
+  id_criterio     Int
+  nota            Decimal         @db.Decimal(4, 2)
+  evaluacion      Evaluacion      @relation(fields: [id_evaluacion], references: [id_evaluacion], onDelete: Cascade)
+  criterio        CriterioRubrica @relation(fields: [id_criterio], references: [id_criterio], onDelete: Cascade)
+
+  @@map("calificacion_criterio")
 }

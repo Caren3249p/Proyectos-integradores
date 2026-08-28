@@ -4,6 +4,11 @@ import dotenv from 'dotenv';
 import authRoutes from './routes/authRoutes.js';
 import backlogRoutes from './routes/backlogRoutes.js';
 import planeRoutes from './routes/planeRoutes.js';
+import proyectoRoutes from './routes/proyectoRoutes.js';
+import versionRoutes from './routes/versionRoutes.js';
+import archivoRoutes from './routes/archivoRoutes.js';
+import rubricaRoutes from './routes/rubricaRoutes.js';
+import evaluacionRoutes from './routes/evaluacionRoutes.js';
 
 dotenv.config();
 
@@ -16,6 +21,11 @@ app.use(express.json());
 app.use('/api/auth', authRoutes);
 app.use('/api/backlog', backlogRoutes);
 app.use('/api/plane', planeRoutes);
+app.use('/api/proyectos', proyectoRoutes);
+app.use('/api', versionRoutes);
+app.use('/api', archivoRoutes);
+app.use('/api/rubricas', rubricaRoutes);
+app.use('/api', evaluacionRoutes);
 
 app.get('/', (req, res) => {
   res.json({ message: 'API de Plataforma de Proyectos Integradores' });
