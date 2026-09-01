@@ -16,3 +16,15 @@ export const verificarToken = (req, res, next) => {
     return res.status(401).json({ error: 'Token inválido o expirado.' });
   }
 };
+
+// Middleware para RBAC
+export const autorizarRoles = (...rolesPermitidos) => {
+  return (req, res, next) => {
+    if (!req.usuario || !rolesPermitidos.includes(req.usuario.rol)) {
+      return res.status(403).json({ 
+        error: `Acceso denegado. Se requiere uno de los siguientes roles: ${rolesPermitidos.join(', ')}.` 
+      });
+    }
+    next();
+  };
+};

@@ -3,11 +3,20 @@ import { z } from 'zod';
 const correoRegex = /^[a-zA-Z0-9._%+-]+@upb\.edu\.co$/;
 const contraseñaRegex = /^(?=.*[A-Z])(?=.*\d).{8,}$/;
 
+// El registro público siempre produce rol=estudiante.
+// Las cuentas docente solo se crean desde la consola/admin, nunca desde la API pública.
 export const registerSchema = z.object({
   nombre: z.string().min(3, 'El nombre debe tener al menos 3 caracteres'),
   correo: z.string().regex(correoRegex, 'El correo debe ser institucional (@upb.edu.co)'),
-  contraseña: z.string().regex(contraseñaRegex, 'La contraseña debe tener mínimo 8 caracteres, 1 mayúscula y 1 número'),
-  rol: z.enum(['estudiante', 'docente'])
+  contrasena: z.string().min(6, 'La contraseña debe tener al menos 6 caracteres'),
+}).transform((data) => ({ ...data, rol: 'estudiante' }));
+
+// Esquema para creación de usuarios por parte de un Administrador
+export const crearUsuarioAdminSchema = z.object({
+  nombre: z.string().min(3, 'El nombre debe tener al menos 3 caracteres'),
+  correo: z.string().regex(correoRegex, 'El correo debe ser institucional (@upb.edu.co)'),
+  contrasena: z.string().min(6, 'La contraseña debe tener al menos 6 caracteres'),
+  rol: z.enum(['estudiante', 'docente', 'admin'], { errorMap: () => ({ message: 'Rol inválido' }) })
 });
 
 export const loginSchema = z.object({
@@ -67,7 +76,7 @@ export const rubricaSchema = z.object({
 
 const calificacionItemSchema = z.object({
   id_criterio: idSchema,
-  nota: z.coerce.number().min(0, 'La nota no puede ser negativa').max(5, 'La nota máxima es 5.0')
+  nota: z.coerce.number().min(0, 'La calificación no puede ser menor que 0').max(5, 'La calificación máxima es 5.0')
 });
 
 export const evaluacionSchema = z.object({

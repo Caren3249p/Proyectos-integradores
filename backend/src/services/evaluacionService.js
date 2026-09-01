@@ -19,6 +19,7 @@ export const crearEvaluacion = async (idProyecto, data, usuario) => {
   });
 
   if (!rubrica) throw errorConEstado('La rúbrica especificada no existe', 404);
+  if (rubrica.id_docente !== usuario.id_usuario) throw errorConEstado('Solo puedes evaluar con rúbricas creadas por ti', 403);
   if (!rubrica.activa) throw errorConEstado('La rúbrica especificada no está activa', 400);
   if (!rubrica.criterios.length) throw errorConEstado('La rúbrica no contiene criterios de evaluación', 400);
 

@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client';
+import { crearProyectoPlane } from './planeService.js';
 
 const prisma = new PrismaClient();
 
@@ -14,8 +15,14 @@ const obtenerProyecto = (id) => prisma.proyecto.findUnique({
   where: { id_proyecto: id },
   include: {
     creador: { select: { id_usuario: true, nombre: true, correo: true, rol: true } },
+    docente: { select: { id_usuario: true, nombre: true, correo: true } },
     integrantes: { include: { usuario: { select: { id_usuario: true, nombre: true, correo: true, rol: true } } } },
     versiones: { include: { archivos: true }, orderBy: { fecha_creacion: 'asc' } },
+    evaluaciones: {
+      orderBy: { fecha: 'desc' },
+      take: 1,
+      include: { docente: { select: { id_usuario: true, nombre: true, correo: true } }, calificaciones: { include: { criterio: true } } }
+    },
     campos_tecnicos: true,
     repositorio: true
   }
@@ -35,24 +42,49 @@ const exigirPuedeModificar = (proyecto, usuario) => {
   }
 };
 
+// Genera un identificador de Plane válido: máx 5 chars, solo mayúsculas y números
+const generarIdentifier = (titulo) => {
+  const clean = titulo.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 4);
+  const rand = Math.floor(10 + Math.random() * 90);
+  return (clean || 'PRY') + rand;
+};
+
 export const crearProyecto = async (data, usuario) => {
   const integrantes = [...new Set([idUsuario(usuario), ...(data.integrantes || [])])];
   if (!integrantes.length) throw errorConEstado('El proyecto debe tener al menos un integrante');
 
-  return prisma.$transaction(async (tx) => {
-    const usuarios = await tx.usuario.findMany({ where: { id_usuario: { in: integrantes } }, select: { id_usuario: true } });
-    if (usuarios.length !== integrantes.length) throw errorConEstado('Uno o más integrantes no existen', 404);
-    return tx.proyecto.create({
-      data: {
-        titulo: data.titulo,
-        descripcion: data.descripcion,
-        id_creador: idUsuario(usuario),
-        integrantes: { create: integrantes.map((id) => ({ id_usuario: id })) },
-        versiones: { create: { numero: 'v1.0' } }
-      },
-      include: { integrantes: true, versiones: true }
-    });
+  // 1. Crear en base de datos
+  const usuariosDb = await prisma.usuario.findMany({ where: { id_usuario: { in: integrantes } }, select: { id_usuario: true } });
+  if (usuariosDb.length !== integrantes.length) throw errorConEstado('Uno o más integrantes no existen', 404);
+
+  const proyecto = await prisma.proyecto.create({
+    data: {
+      titulo: data.titulo,
+      descripcion: data.descripcion,
+      id_creador: idUsuario(usuario),
+      integrantes: { create: integrantes.map((id) => ({ id_usuario: id })) },
+      versiones: { create: { numero: 'v1.0' } }
+    },
+    include: { integrantes: true, versiones: true }
   });
+
+  // 2. Sincronizar con Plane (no bloquea si falla)
+  try {
+    const identifier = generarIdentifier(data.titulo);
+    const planeProy = await crearProyectoPlane(data.titulo, data.descripcion || '', identifier);
+    if (planeProy?.id) {
+      await prisma.proyecto.update({
+        where: { id_proyecto: proyecto.id_proyecto },
+        data: { id_plane_proyecto: planeProy.id }
+      });
+      proyecto.id_plane_proyecto = planeProy.id;
+    }
+  } catch (planeErr) {
+    // Plane falla silenciosamente — el proyecto existe en DB aunque no tenga Plane aún
+    console.warn('[Plane] No se pudo crear el proyecto en Plane:', planeErr.message);
+  }
+
+  return proyecto;
 };
 
 export const obtenerDetalleProyecto = (id) => exigirProyecto(id);
@@ -110,4 +142,94 @@ export const desenlazarRepositorio = async (id, usuario) => {
   await prisma.repositorio.deleteMany({ where: { id_proyecto: id } });
 };
 
+// --- Funciones de asignación de docente asesor ---
+
+// Lista todos los proyectos que aún no tienen docente asignado
+export const listarProyectosSinDocente = async () => {
+  return prisma.proyecto.findMany({
+    where: { id_docente: null },
+    include: {
+      creador: { select: { id_usuario: true, nombre: true, correo: true } },
+      integrantes: { include: { usuario: { select: { id_usuario: true, nombre: true, correo: true } } } },
+      campos_tecnicos: true
+    },
+    orderBy: { id_proyecto: 'desc' }
+  });
+};
+
+// Docente se asigna como asesor de un proyecto sin asesor
+export const asignarDocente = async (id_proyecto, usuario) => {
+  if (usuario.rol !== 'docente') {
+    throw errorConEstado('Solo los docentes pueden asignarse como asesores', 403);
+  }
+  const proyecto = await exigirProyecto(id_proyecto);
+  if (proyecto.id_docente) {
+    throw errorConEstado('Este proyecto ya tiene un docente asesor asignado');
+  }
+  return prisma.proyecto.update({
+    where: { id_proyecto },
+    data: {
+      id_docente: usuario.id_usuario,
+      estado: proyecto.estado === 'borrador' ? 'activo' : proyecto.estado
+    },
+    include: {
+      creador: { select: { id_usuario: true, nombre: true, correo: true } },
+      docente: { select: { id_usuario: true, nombre: true, correo: true } }
+    }
+  });
+};
+
+// Docente se desasigna del proyecto (solo puede hacerlo el propio docente)
+export const desasignarDocente = async (id_proyecto, usuario) => {
+  if (usuario.rol !== 'docente') {
+    throw errorConEstado('Solo los docentes pueden desasignarse', 403);
+  }
+  const proyecto = await exigirProyecto(id_proyecto);
+  if (proyecto.id_docente !== usuario.id_usuario) {
+    throw errorConEstado('No eres el docente asesor asignado a este proyecto', 403);
+  }
+  return prisma.proyecto.update({
+    where: { id_proyecto },
+    data: { id_docente: null }
+  });
+};
+
 export { errorConEstado, exigirProyecto, exigirPuedeModificar, esIntegrante };
+
+export const listarMisProyectos = async (usuario) => {
+  const includes = {
+    creador: { select: { id_usuario: true, nombre: true, correo: true, rol: true } },
+    docente: { select: { id_usuario: true, nombre: true, correo: true } },
+    integrantes: { include: { usuario: { select: { id_usuario: true, nombre: true, correo: true, rol: true } } } },
+    versiones: { include: { archivos: true }, orderBy: { fecha_creacion: 'asc' } },
+    evaluaciones: {
+      orderBy: { fecha: 'desc' },
+      take: 1,
+      include: { docente: { select: { id_usuario: true, nombre: true, correo: true } }, calificaciones: { include: { criterio: true } } }
+    },
+    campos_tecnicos: true,
+    repositorio: true
+  };
+
+  if (usuario.rol === 'admin') {
+    return prisma.proyecto.findMany({ include: includes });
+  }
+
+  if (usuario.rol === 'docente') {
+    return prisma.proyecto.findMany({
+      where: { id_docente: usuario.id_usuario },
+      include: includes
+    });
+  }
+
+  // Estudiante
+  return prisma.proyecto.findMany({
+    where: {
+      OR: [
+        { id_creador: usuario.id_usuario },
+        { integrantes: { some: { id_usuario: usuario.id_usuario } } }
+      ]
+    },
+    include: includes
+  });
+};

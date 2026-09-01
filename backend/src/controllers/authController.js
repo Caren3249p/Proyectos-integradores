@@ -5,14 +5,11 @@ export const register = async (req, res) => {
   try {
     const validData = registerSchema.parse(req.body);
     const usuario = await registrarUsuario(validData);
+    const sesion = await iniciarSesion(validData.correo, validData.contrasena);
     res.status(201).json({
       message: 'Usuario registrado exitosamente',
-      usuario: {
-        id_usuario: usuario.id_usuario,
-        nombre: usuario.nombre,
-        correo: usuario.correo,
-        rol: usuario.rol
-      }
+      token: sesion.token,
+      usuario: sesion.usuario
     });
   } catch (error) {
     if (error.name === 'ZodError') {

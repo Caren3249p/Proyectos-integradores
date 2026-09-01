@@ -8,18 +8,19 @@ datasource db {
 }
 
 model Usuario {
-  id_usuario        Int                  @id @default(autoincrement())
-  nombre            String               @db.VarChar(100)
-  correo            String               @unique @db.VarChar(100)
-  contrasena_hash   String               @map("contraseña_hash") @db.VarChar(255)
-  rol               String               @db.VarChar(20)
-  fecha_registro    DateTime             @default(now())
-  github_username   String?              @unique @db.VarChar(100)
-  plane_user_id     String?              @unique @db.VarChar(100)
-  evaluaciones      Evaluacion[]
-  integrantes       IntegranteProyecto[]
-  proyectos_creados Proyecto[]           @relation("ProyectoCreador")
-  rubricas          Rubrica[]
+  id_usuario          Int                  @id @default(autoincrement())
+  nombre              String               @db.VarChar(100)
+  correo              String               @unique @db.VarChar(100)
+  contrasena_hash     String               @map("contraseña_hash") @db.VarChar(255)
+  rol                 String               @db.VarChar(20)
+  fecha_registro      DateTime             @default(now())
+  github_username     String?              @unique @db.VarChar(100)
+  plane_user_id       String?              @unique @db.VarChar(100)
+  evaluaciones        Evaluacion[]
+  integrantes         IntegranteProyecto[]
+  proyectos_creados   Proyecto[]           @relation("ProyectoCreador")
+  proyectos_asesorados Proyecto[]          @relation("ProyectoDocente")
+  rubricas            Rubrica[]
 
   @@map("usuario")
 }
@@ -32,9 +33,11 @@ model Proyecto {
   porcentaje_avance Int                  @default(0)
   estado            String               @default("borrador") @db.VarChar(20)
   id_creador        Int?
+  id_docente        Int?
   campos_tecnicos   CampoTecnico?
   integrantes       IntegranteProyecto[]
   creador           Usuario?             @relation("ProyectoCreador", fields: [id_creador], references: [id_usuario])
+  docente           Usuario?             @relation("ProyectoDocente", fields: [id_docente], references: [id_usuario])
   repositorio       Repositorio?
   tareas            TareaBacklog[]
   versiones         VersionProyecto[]

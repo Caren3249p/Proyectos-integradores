@@ -6,7 +6,8 @@ const prisma = new PrismaClient();
 const BCRYPT_ROUNDS = parseInt(process.env.BCRYPT_ROUNDS) || 10;
 
 export const registrarUsuario = async (data) => {
-  const { nombre, correo, contraseña, rol } = data;
+  // data.rol siempre es 'estudiante' — lo fuerza el schema (transform)
+  const { nombre, correo, contrasena, rol } = data;
 
   const existe = await prisma.usuario.findUnique({ where: { correo } });
   if (existe) {
@@ -15,14 +16,14 @@ export const registrarUsuario = async (data) => {
     throw err;
   }
 
-  const hash = await bcrypt.hash(contraseña, BCRYPT_ROUNDS);
+  const hash = await bcrypt.hash(contrasena, BCRYPT_ROUNDS);
 
   const usuario = await prisma.usuario.create({
     data: {
       nombre,
       correo,
       contrasena_hash: hash,
-      rol
+      rol // siempre 'estudiante' por el transform del schema
     }
   });
 

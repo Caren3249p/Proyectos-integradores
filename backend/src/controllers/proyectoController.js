@@ -1,13 +1,17 @@
 import {
   agregarIntegrante,
   actualizarProyecto,
+  asignarDocente as asignarDocenteService,
+  desasignarDocente as desasignarDocenteService,
+  listarProyectosSinDocente,
   crearProyecto,
   desenlazarRepositorio,
   eliminarProyecto,
   enlazarRepositorio,
   guardarCamposTecnicos,
   obtenerDetalleProyecto,
-  quitarIntegrante
+  quitarIntegrante,
+  listarMisProyectos
 } from '../services/proyectoService.js';
 import { camposTecnicosSchema, crearProyectoSchema, actualizarProyectoSchema, integranteSchema, repositorioSchema } from '../utils/validators.js';
 
@@ -26,6 +30,15 @@ export const crear = async (req, res) => {
 export const obtener = async (req, res) => {
   try { res.json({ proyecto: await obtenerDetalleProyecto(id(req)) }); }
   catch (error) { responderError(res, error); }
+};
+
+export const listar = async (req, res) => {
+  try {
+    const proyectos = await listarMisProyectos(req.usuario);
+    res.json(proyectos);
+  } catch (error) {
+    responderError(res, error);
+  }
 };
 
 export const actualizar = async (req, res) => {
@@ -61,4 +74,28 @@ export const enlazar = async (req, res) => {
 export const desenlazar = async (req, res) => {
   try { await desenlazarRepositorio(id(req), req.usuario); res.json({ message: 'Repositorio desenlazado exitosamente' }); }
   catch (error) { responderError(res, error); }
+};
+
+// Docente: listar proyectos sin asesor asignado
+export const sinDocente = async (req, res) => {
+  try {
+    if (req.usuario.rol !== 'docente') return res.status(403).json({ error: 'Solo los docentes pueden acceder a esta lista' });
+    res.json({ proyectos: await listarProyectosSinDocente() });
+  } catch (error) { responderError(res, error); }
+};
+
+// Docente: tomar un proyecto sin asesor
+export const asignarDoc = async (req, res) => {
+  try {
+    const proyecto = await asignarDocenteService(id(req), req.usuario);
+    res.json({ message: 'Proyecto asignado exitosamente', proyecto });
+  } catch (error) { responderError(res, error); }
+};
+
+// Docente: liberarse de un proyecto
+export const desasignarDoc = async (req, res) => {
+  try {
+    await desasignarDocenteService(id(req), req.usuario);
+    res.json({ message: 'Proyecto desasignado exitosamente' });
+  } catch (error) { responderError(res, error); }
 };
