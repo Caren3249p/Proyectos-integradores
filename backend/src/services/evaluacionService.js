@@ -1,5 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 import { errorConEstado, exigirProyecto, esIntegrante } from './proyectoService.js';
+import { transformarPlanoAArbol } from './rubricaService.js';
+import { obtenerHojasEvaluables } from '../utils/validators.js';
 
 const prisma = new PrismaClient();
 
@@ -9,13 +11,113 @@ const exigirDocente = (usuario) => {
   }
 };
 
+const incluirEvaluacion = {
+  rubrica: true,
+  docente: { select: { id_usuario: true, nombre: true, correo: true } },
+  calificaciones: { include: { criterio: true } }
+};
+
+const incluirCriteriosRubrica = {
+  criterios: {
+    include: { niveles: { orderBy: { nivel: 'asc' } } },
+    orderBy: { orden: 'asc' }
+  }
+};
+
+const construirArbolRubrica = (criterios = []) => {
+  const tieneHijosAnidados = criterios.some((criterio) => Array.isArray(criterio.hijos) && criterio.hijos.length);
+  if (tieneHijosAnidados) {
+    const raices = criterios.filter((criterio) => !criterio.parentId && !criterio.id_padre);
+    return raices.length ? raices : criterios;
+  }
+  return transformarPlanoAArbol(criterios);
+};
+
+export const calcularNotaNodo = (nodo, evaluacionesMap = new Map()) => {
+  if (!nodo) return 0;
+
+  const hijos = Array.isArray(nodo.hijos) ? nodo.hijos : [];
+  const esHoja = nodo.esHoja === true || nodo.es_hoja === true || hijos.length === 0;
+
+  if (esHoja || hijos.length === 0) {
+    const id = nodo.id_criterio ?? nodo.id;
+    const nota = evaluacionesMap.get(id) ?? evaluacionesMap.get(String(id)) ?? 0;
+    return Number(nota ?? 0);
+  }
+
+  return hijos.reduce((total, hijo) => {
+    const notaHijo = calcularNotaNodo(hijo, evaluacionesMap);
+    const pesoHijo = Number(hijo.peso ?? hijo.ponderacion ?? 0);
+    return total + (notaHijo * (pesoHijo / 100));
+  }, 0);
+};
+
+export const calcularNotaFinal = (rubrica, evaluacionesMap = new Map()) => {
+  if (!rubrica) return 0;
+  const criterios = Array.isArray(rubrica.nodos)
+    ? rubrica.nodos
+    : Array.isArray(rubrica.criterios) ? rubrica.criterios : [];
+  const arbol = construirArbolRubrica(criterios);
+  if (!arbol.length) return 0;
+
+  const total = arbol.reduce((suma, nodo) => {
+    const notaNodo = calcularNotaNodo(nodo, evaluacionesMap);
+    const pesoNodo = Number(nodo.peso ?? nodo.ponderacion ?? 0);
+    return suma + (notaNodo * (pesoNodo / 100));
+  }, 0);
+
+  return Math.round(total * 100) / 100;
+};
+
+const resolverNotaHoja = (item, hoja) => {
+  if (item.nota !== undefined && item.nota !== null && item.nota !== '') {
+    return Number(item.nota);
+  }
+  if (item.nivel !== undefined && Array.isArray(hoja?.niveles)) {
+    const nivel = hoja.niveles.find((n) => Number(n.nivel) === Number(item.nivel));
+    if (nivel) return Number(nivel.puntos);
+    return Number(item.nivel);
+  }
+  return 0;
+};
+
+const construirMapaNotas = (calificaciones, hojas) => {
+  const porId = new Map(hojas.map((hoja) => [Number(hoja.id), hoja]));
+  const evaluacionesMap = new Map();
+  for (const item of calificaciones) {
+    const nota = resolverNotaHoja(item, porId.get(item.id_criterio));
+    evaluacionesMap.set(item.id_criterio, nota);
+    evaluacionesMap.set(String(item.id_criterio), nota);
+  }
+  return evaluacionesMap;
+};
+
+const validarCalificacionesHojas = (arbol, calificaciones) => {
+  const hojas = obtenerHojasEvaluables(arbol);
+  const idsHojas = new Set(hojas.map((hoja) => Number(hoja.id)));
+
+  for (const item of calificaciones) {
+    if (!idsHojas.has(item.id_criterio)) {
+      throw errorConEstado(`El criterio ID ${item.id_criterio} no es una hoja evaluable de esta rúbrica`, 400);
+    }
+  }
+
+  const calificados = new Set(calificaciones.map((item) => item.id_criterio));
+  const faltantes = hojas.filter((hoja) => !calificados.has(Number(hoja.id)));
+  if (faltantes.length) {
+    throw errorConEstado('Debe calificar todos los criterios hoja de la rúbrica', 400);
+  }
+
+  return { hojas, evaluacionesMap: construirMapaNotas(calificaciones, hojas) };
+};
+
 export const crearEvaluacion = async (idProyecto, data, usuario) => {
   exigirDocente(usuario);
-  const proyecto = await exigirProyecto(idProyecto);
-  
+  await exigirProyecto(idProyecto);
+
   const rubrica = await prisma.rubrica.findUnique({
     where: { id_rubrica: data.id_rubrica },
-    include: { criterios: true }
+    include: incluirCriteriosRubrica
   });
 
   if (!rubrica) throw errorConEstado('La rúbrica especificada no existe', 404);
@@ -23,24 +125,9 @@ export const crearEvaluacion = async (idProyecto, data, usuario) => {
   if (!rubrica.activa) throw errorConEstado('La rúbrica especificada no está activa', 400);
   if (!rubrica.criterios.length) throw errorConEstado('La rúbrica no contiene criterios de evaluación', 400);
 
-  const mapCriterios = new Map(rubrica.criterios.map((c) => [c.id_criterio, Number(c.peso)]));
-  for (const item of data.calificaciones) {
-    if (!mapCriterios.has(item.id_criterio)) {
-      throw errorConEstado(`El criterio ID ${item.id_criterio} no pertenece a esta rúbrica`, 400);
-    }
-  }
-
-  if (data.calificaciones.length !== rubrica.criterios.length) {
-    throw errorConEstado('Debe calificar todos los criterios de la rúbrica', 400);
-  }
-
-  let notaFinalPonderada = 0;
-  for (const item of data.calificaciones) {
-    const peso = mapCriterios.get(item.id_criterio);
-    notaFinalPonderada += Number(item.nota) * (peso / 100);
-  }
-
-  const notaFinalRedondeada = Math.round(notaFinalPonderada * 100) / 100;
+  const arbol = construirArbolRubrica(rubrica.criterios);
+  const { evaluacionesMap } = validarCalificacionesHojas(arbol, data.calificaciones);
+  const notaFinalRedondeada = calcularNotaFinal({ criterios: arbol }, evaluacionesMap);
 
   return prisma.evaluacion.create({
     data: {
@@ -53,15 +140,11 @@ export const crearEvaluacion = async (idProyecto, data, usuario) => {
       calificaciones: {
         create: data.calificaciones.map((item) => ({
           id_criterio: item.id_criterio,
-          nota: item.nota
+          nota: evaluacionesMap.get(item.id_criterio)
         }))
       }
     },
-    include: {
-      rubrica: true,
-      docente: { select: { id_usuario: true, nombre: true, correo: true } },
-      calificaciones: { include: { criterio: true } }
-    }
+    include: incluirEvaluacion
   });
 };
 
@@ -70,9 +153,7 @@ export const obtenerEvaluacion = async (idEvaluacion, usuario) => {
     where: { id_evaluacion: idEvaluacion },
     include: {
       proyecto: { include: { integrantes: true } },
-      rubrica: true,
-      docente: { select: { id_usuario: true, nombre: true, correo: true } },
-      calificaciones: { include: { criterio: true } }
+      ...incluirEvaluacion
     }
   });
 
@@ -102,11 +183,7 @@ export const cerrarEvaluacion = async (idEvaluacion, usuario) => {
   return prisma.evaluacion.update({
     where: { id_evaluacion: idEvaluacion },
     data: { estado: 'cerrada' },
-    include: {
-      rubrica: true,
-      docente: { select: { id_usuario: true, nombre: true, correo: true } },
-      calificaciones: { include: { criterio: true } }
-    }
+    include: incluirEvaluacion
   });
 };
 
@@ -128,11 +205,7 @@ export const reabrirEvaluacion = async (idEvaluacion, usuario) => {
   return prisma.evaluacion.update({
     where: { id_evaluacion: idEvaluacion },
     data: { estado: 'borrador' },
-    include: {
-      rubrica: true,
-      docente: { select: { id_usuario: true, nombre: true, correo: true } },
-      calificaciones: { include: { criterio: true } }
-    }
+    include: incluirEvaluacion
   });
 };
 
@@ -141,7 +214,7 @@ export const actualizarEvaluacion = async (idEvaluacion, data, usuario) => {
 
   const evaluacion = await prisma.evaluacion.findUnique({
     where: { id_evaluacion: idEvaluacion },
-    include: { rubrica: { include: { criterios: true } } }
+    include: { rubrica: { include: incluirCriteriosRubrica } }
   });
 
   if (!evaluacion) throw errorConEstado('Evaluación no encontrada', 404);
@@ -152,25 +225,9 @@ export const actualizarEvaluacion = async (idEvaluacion, data, usuario) => {
     throw errorConEstado('No se puede modificar una evaluación cerrada. Debe reabrirla primero.', 400);
   }
 
-  const rubrica = evaluacion.rubrica;
-  const mapCriterios = new Map(rubrica.criterios.map((c) => [c.id_criterio, Number(c.peso)]));
-  for (const item of data.calificaciones) {
-    if (!mapCriterios.has(item.id_criterio)) {
-      throw errorConEstado(`El criterio ID ${item.id_criterio} no pertenece a esta rúbrica`, 400);
-    }
-  }
-
-  if (data.calificaciones.length !== rubrica.criterios.length) {
-    throw errorConEstado('Debe calificar todos los criterios de la rúbrica', 400);
-  }
-
-  let notaFinalPonderada = 0;
-  for (const item of data.calificaciones) {
-    const peso = mapCriterios.get(item.id_criterio);
-    notaFinalPonderada += Number(item.nota) * (peso / 100);
-  }
-
-  const notaFinalRedondeada = Math.round(notaFinalPonderada * 100) / 100;
+  const arbol = construirArbolRubrica(evaluacion.rubrica.criterios);
+  const { evaluacionesMap } = validarCalificacionesHojas(arbol, data.calificaciones);
+  const notaFinalRedondeada = calcularNotaFinal({ criterios: arbol }, evaluacionesMap);
 
   return prisma.$transaction(async (tx) => {
     await tx.calificacionCriterio.deleteMany({
@@ -185,15 +242,11 @@ export const actualizarEvaluacion = async (idEvaluacion, data, usuario) => {
         calificaciones: {
           create: data.calificaciones.map((item) => ({
             id_criterio: item.id_criterio,
-            nota: item.nota
+            nota: evaluacionesMap.get(item.id_criterio)
           }))
         }
       },
-      include: {
-        rubrica: true,
-        docente: { select: { id_usuario: true, nombre: true, correo: true } },
-        calificaciones: { include: { criterio: true } }
-      }
+      include: incluirEvaluacion
     });
   });
 };
@@ -206,11 +259,7 @@ export const listarEvaluacionesProyecto = async (idProyecto, usuario) => {
 
   return prisma.evaluacion.findMany({
     where: { id_proyecto: idProyecto },
-    include: {
-      rubrica: { select: { id_rubrica: true, nombre: true } },
-      docente: { select: { id_usuario: true, nombre: true, correo: true } },
-      calificaciones: { include: { criterio: true } }
-    },
+    include: incluirEvaluacion,
     orderBy: { fecha: 'desc' }
   });
 };

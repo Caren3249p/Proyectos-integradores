@@ -2,6 +2,8 @@
 import cors from 'cors';
 import dotenv from 'dotenv';
 import path from 'path';
+import bcrypt from 'bcrypt';
+import { PrismaClient } from '@prisma/client';
 import { fileURLToPath } from 'url';
 
 import authRoutes from './routes/authRoutes.js';
@@ -21,6 +23,27 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const prisma = new PrismaClient();
+
+const ensureDefaultAdmin = async () => {
+  const adminEmail = 'admin@upb.edu.co';
+  const adminExists = await prisma.usuario.findUnique({
+    where: { correo: adminEmail }
+  });
+
+  if (!adminExists) {
+    const hash = await bcrypt.hash('AdminUPB2026', 10);
+    await prisma.usuario.create({
+      data: {
+        nombre: 'Coordinador UPB',
+        correo: adminEmail,
+        contrasena_hash: hash,
+        rol: 'admin'
+      }
+    });
+    console.log('✅ Admin por defecto restaurado: admin@upb.edu.co');
+  }
+};
 
 app.use(cors());
 app.use(express.json());
@@ -47,6 +70,12 @@ app.use((err, req, res, next) => {
   res.status(err.status || 500).json({ error: err.status ? err.message : 'Error interno del servidor' });
 });
 
-app.listen(PORT, () => {
-  console.log(`Servidor corriendo en http://localhost:${PORT}`);
+app.listen(PORT, async () => {
+  try {
+    await ensureDefaultAdmin();
+    console.log(`Servidor corriendo en http://localhost:${PORT}`);
+  } catch (error) {
+    console.error('Error al garantizar el usuario admin por defecto:', error.message);
+    console.log(`Servidor corriendo en http://localhost:${PORT}`);
+  }
 });

@@ -7,6 +7,12 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum TipoNodoRubrica {
+  CORTE_ACADEMICO
+  ACTIVIDAD
+  CRITERIO_EVALUABLE
+}
+
 model Usuario {
   id_usuario          Int                  @id @default(autoincrement())
   nombre              String               @db.VarChar(100)
@@ -135,15 +141,39 @@ model Rubrica {
 }
 
 model CriterioRubrica {
-  id_criterio    Int                    @id @default(autoincrement())
-  id_rubrica     Int
-  nombre         String                 @db.VarChar(150)
-  descripcion    String
-  peso           Decimal                @db.Decimal(5, 2)
-  rubrica        Rubrica                @relation(fields: [id_rubrica], references: [id_rubrica], onDelete: Cascade)
-  calificaciones CalificacionCriterio[]
+  id_criterio         Int                    @id @default(autoincrement())
+  id_rubrica          Int
+  id_padre            Int?
+  nombre              String                 @db.VarChar(150)
+  descripcion         String                 @db.Text
+  peso                Decimal                @db.Decimal(5, 2) // Ponderación relativa (0-100) dentro del grupo padre
+  tipo                TipoNodoRubrica        @default(CRITERIO_EVALUABLE)
+  es_hoja             Boolean                @default(true)
+  orden               Int                    @default(0)
+  fecha_creacion      DateTime               @default(now())
+  fecha_actualizacion DateTime               @default(now()) @updatedAt
 
+  rubrica             Rubrica                @relation(fields: [id_rubrica], references: [id_rubrica], onDelete: Cascade)
+  padre               CriterioRubrica?       @relation("RubricaJerarquia", fields: [id_padre], references: [id_criterio], onDelete: Cascade)
+  hijos               CriterioRubrica[]      @relation("RubricaJerarquia")
+  niveles             NivelDesempeno[]
+  calificaciones      CalificacionCriterio[]
+
+  @@index([id_rubrica])
+  @@index([id_padre])
   @@map("criterio_rubrica")
+}
+
+model NivelDesempeno {
+  id_nivel      Int               @id @default(autoincrement())
+  id_criterio   Int
+  nivel         Int               // 0, 1, 2, 3, 4, 5 (escala de desempeño)
+  puntos        Decimal           @db.Decimal(4, 2) // Valor puntual
+  descripcion   String            @db.Text // Descripción cualitativa
+  criterio      CriterioRubrica   @relation(fields: [id_criterio], references: [id_criterio], onDelete: Cascade)
+
+  @@unique([id_criterio, nivel])
+  @@map("nivel_desempeno")
 }
 
 model Evaluacion {

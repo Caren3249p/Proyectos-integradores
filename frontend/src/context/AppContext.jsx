@@ -4,6 +4,71 @@ import { api } from '../services/api';
 
 const AppContext = createContext();
 
+const normalizeNodoRubrica = (criterio, parentId = null) => {
+  const hijosRaw = Array.isArray(criterio?.hijos) ? criterio.hijos : [];
+  const id = criterio?.id_criterio ?? criterio?.id;
+  const esHoja = (criterio?.es_hoja ?? criterio?.esHoja ?? null) !== null
+    ? Boolean(criterio?.es_hoja ?? criterio?.esHoja)
+    : hijosRaw.length === 0;
+
+  return {
+    id,
+    nombre: criterio?.nombre || 'Criterio sin nombre',
+    descripcion: criterio?.descripcion || '',
+    peso: Number(criterio?.peso ?? criterio?.ponderacion ?? 0),
+    parentId: criterio?.id_padre ?? criterio?.parentId ?? parentId,
+    tipo: criterio?.tipo || (parentId == null ? 'CORTE_ACADEMICO' : (hijosRaw.length ? 'ACTIVIDAD' : 'CRITERIO_EVALUABLE')),
+    orden: criterio?.orden ?? 0,
+    esHoja,
+    niveles: Array.isArray(criterio?.niveles) ? criterio.niveles : [],
+    hijos: hijosRaw.map((hijo) => normalizeNodoRubrica(hijo, id))
+  };
+};
+
+const normalizeRubricCriteria = (criterios = []) => {
+  if (!Array.isArray(criterios) || criterios.length === 0) return [];
+  const tieneHijosAnidados = criterios.some((criterio) => Array.isArray(criterio.hijos) && criterio.hijos.length);
+  if (tieneHijosAnidados || criterios.every((criterio) => !criterio.parentId && !criterio.id_padre)) {
+    return criterios.map((criterio) => normalizeNodoRubrica(criterio, null));
+  }
+
+  const mapa = new Map();
+  criterios.forEach((criterio) => {
+    const nodo = { ...normalizeNodoRubrica({ ...criterio, hijos: [] }), hijos: [] };
+    mapa.set(String(nodo.id), nodo);
+  });
+
+  const raices = [];
+  criterios.forEach((criterio) => {
+    const id = String(criterio.id_criterio ?? criterio.id);
+    const nodo = mapa.get(id);
+    const parentId = criterio.id_padre ?? criterio.parentId ?? null;
+    if (parentId == null) {
+      raices.push(nodo);
+      return;
+    }
+    const padre = mapa.get(String(parentId));
+    if (padre) {
+      padre.hijos.push(nodo);
+      padre.esHoja = false;
+    } else {
+      raices.push(nodo);
+    }
+  });
+  return raices;
+};
+
+const serializarCriterioRubrica = (criterio) => ({
+  nombre: criterio.nombre,
+  descripcion: criterio.descripcion || '',
+  peso: Number(criterio.peso) || 0,
+  tipo: criterio.tipo,
+  esHoja: criterio.esHoja,
+  orden: criterio.orden ?? 0,
+  niveles: criterio.esHoja ? (criterio.niveles || []) : [],
+  hijos: (criterio.hijos || []).map(serializarCriterioRubrica)
+});
+
 export const AppProvider = ({ children }) => {
   const [user, setUser] = useState(() => {
     const saved = localStorage.getItem('upb_user');
@@ -172,12 +237,7 @@ export const AppProvider = ({ children }) => {
           activa: r.activa,
           id_docente: r.id_docente,
           docente_nombre: r.docente?.nombre || user.nombre,
-          criterios: r.criterios.map(c => ({
-            id: c.id_criterio,
-            nombre: c.nombre,
-            descripcion: c.descripcion,
-            peso: Number(c.peso)
-          }))
+          criterios: normalizeRubricCriteria(r.criterios)
         })));
       }
     };
@@ -482,7 +542,7 @@ export const AppProvider = ({ children }) => {
       const res = await api.post('/rubricas', {
         nombre: newRubric.nombre,
         descripcion: newRubric.descripcion,
-        criterios: newRubric.criterios.map(({ nombre, descripcion, peso }) => ({ nombre, descripcion, peso }))
+        criterios: (newRubric.criterios || []).map(serializarCriterioRubrica)
       });
       if (!res?.rubrica) {
         showToast(res?.error || 'No se pudo guardar la rúbrica', 'error');
@@ -492,7 +552,7 @@ export const AppProvider = ({ children }) => {
         ...newRubric,
         id: res.rubrica.id_rubrica,
         id_docente: res.rubrica.id_docente,
-        criterios: res.rubrica.criterios.map(c => ({ ...c, id: c.id_criterio, peso: Number(c.peso) }))
+        criterios: normalizeRubricCriteria(res.rubrica.criterios)
       };
     }
     setRubrics(prev => [newRubric, ...prev]);

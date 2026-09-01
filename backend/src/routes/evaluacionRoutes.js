@@ -1,6 +1,13 @@
 import express from 'express';
 import { verificarToken } from '../middleware/authMiddleware.js';
-import { actualizar, cerrar, crear, listar, obtener, reabrir } from '../controllers/evaluacionController.js';
+import {
+  actualizar,
+  cerrar,
+  crear,
+  listar,
+  obtener,
+  reabrir
+} from '../controllers/evaluacionController.js';
 
 const router = express.Router();
 router.use(verificarToken);
