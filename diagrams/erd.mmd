@@ -1,0 +1,44 @@
+erDiagram
+  USUARIO ||--o{ PROYECTO_CREADO : "id_creador (1:N)"
+  USUARIO ||--o{ PROYECTO_ASESORADO : "id_docente (1:N)"
+  USUARIO ||--o{ INTEGRANTE_PROYECTO : "pertenece (1:N)"
+  
+  PROYECTO ||--o{ INTEGRANTE_PROYECTO : "tiene (1:N)"
+  PROYECTO ||--o| CAMPO_TECNICO : "describe (1:1)"
+  PROYECTO ||--o| REPOSITORIO : "vincula (1:1)"
+  PROYECTO ||--o{ VERSION_PROYECTO : "contiene (1:N)"
+  PROYECTO ||--o{ EVALUACION : "recibe (1:N)"
+  PROYECTO ||--o{ TAREA_BACKLOG : "sincroniza (1:N)"
+
+  VERSION_PROYECTO ||--o{ ARCHIVO : "adjunta (1:N)"
+
+  RUBRICA ||--o{ CRITERIO_RUBRICA : "compone (1:N)"
+  RUBRICA ||--o{ EVALUACION : "aplica_en (1:N)"
+
+  CRITERIO_RUBRICA ||--o{ CRITERIO_RUBRICA : "id_padre recursivo (1:N)"
+  CRITERIO_RUBRICA ||--o{ NIVEL_DESEMPENO : "escala (1:N)"
+  CRITERIO_RUBRICA ||--o{ CALIFICACION_CRITERIO : "pondera (1:N)"
+
+  EVALUACION ||--o{ CALIFICACION_CRITERIO : "almacena_nota_hoja (1:N)"
+
+  PROYECTO {
+    int id_proyecto PK
+    string titulo
+    string estado
+    string id_plane_proyecto UK
+  }
+  
+  VERSION_PROYECTO {
+    int id_version PK
+    int id_proyecto FK
+    boolean es_final
+    datetime fecha_creacion
+  }
+  
+  CRITERIO_RUBRICA {
+    int id_criterio PK
+    int id_rubrica FK
+    int id_padre FK
+    decimal peso
+    boolean es_hoja
+  }

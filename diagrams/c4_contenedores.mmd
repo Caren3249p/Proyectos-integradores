@@ -1,0 +1,41 @@
+@startuml
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+
+SHOW_PERSON_PORTRAIT()
+
+title Figura X. Diagrama C4 Nivel 2 de Contenedores - Plataforma de Proyectos Integradores
+
+Person(est, "Estudiante", "Registra proyectos, sube evidencias y gestiona su backlog.")
+Person(doc, "Docente", "Evalúa proyectos mediante rúbricas jerárquicas multinivel.")
+Person(adm, "Admin", "Administra usuarios docentes y visualiza el catálogo global.")
+
+System_Boundary(pi, "Infraestructura Plataforma PI") {
+  
+  Container(spa, "Aplicación Web (SPA)", "React, Vite, Tailwind CSS", "Provee la interfaz responsiva. Servida con host:true para túneles.")
+  
+  Container(api, "API REST Backend", "Node.js, Express", "Gestiona reglas de negocio, validación JWT, Zod y algoritmo Bottom-Up.")
+  
+  Container(orm, "Capa de Acceso a Datos", "Prisma ORM", "Abstrae el modelo de datos y previene inyecciones SQL.")
+  
+  ContainerDb(pg, "Base de Datos", "PostgreSQL", "Esquema relacional (15 tablas) con reglas ACID e integridad referencial.")
+  
+  Container(fs, "Almacenamiento Local", "Multer / File System", "Guarda físicamente las evidencias (.pdf, .zip, etc) hasta 100 MB.")
+}
+
+System_Ext(plane, "Plane.so API", "Sistema ágil externo para la gestión del tablero Kanban.")
+System_Ext(gh, "GitHub / GitLab", "Repositorio externo de código fuente.")
+
+Rel(est, spa, "Navega e interactúa en", "HTTPS")
+Rel(doc, spa, "Navega e interactúa en", "HTTPS")
+Rel(adm, spa, "Navega e interactúa en", "HTTPS")
+
+Rel(spa, api, "Consume endpoints protegidos", "JSON / HTTPS + JWT")
+Rel(api, orm, "Mapea entidades y ejecuta", "TypeScript")
+Rel(orm, pg, "Lee/Escribe datos", "TCP 5432")
+Rel(api, fs, "Guarda/Recupera adjuntos", "I/O local")
+
+Rel(api, plane, "Sincroniza issues (Proxy)", "HTTPS API Key")
+Rel(spa, gh, "Redirige al código fuente", "URL")
+
+SHOW_LEGEND()
+@enduml

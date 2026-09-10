@@ -1,0 +1,34 @@
+sequenceDiagram
+  autonumber
+  actor D as Docente
+  participant API as :EvaluacionRouter
+  participant S as :EvaluacionService
+  participant DB as :PrismaClient
+
+  D->>API: POST /api/proyectos/{id}/evaluaciones
+  activate API
+  API->>S: crearEvaluacion(payload, idDocente)
+  activate S
+  
+  S->>DB: findUnique({ id_rubrica })
+  activate DB
+  DB-->>S: Array[CriteriosPlanos]
+  deactivate DB
+  
+  S->>S: transformarPlanoAArbol()
+  S->>S: calcularNotaNodo(recursivo)
+  
+  S->>DB: evaluacion.create(nested: calificaciones)
+  activate DB
+  alt Transacción Exitosa
+    DB-->>S: EvaluacionRecord
+    S-->>API: 201 Created (nota_final)
+    API-->>D: HTTP 201 JSON Response
+  else Fallo de Integridad
+    DB-->>S: PrismaClientKnownRequestError
+    S-->>API: Throw Error
+    API-->>D: HTTP 500 / 400
+  end
+  deactivate DB
+  deactivate S
+  deactivate API

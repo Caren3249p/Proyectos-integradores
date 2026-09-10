@@ -1,0 +1,28 @@
+classDiagram
+  class ProyectoService {
+    +crearProyecto(datos: Object, idCreador: int) Promise~Object~
+    +listarMisProyectos(usuario: Object) Promise~Array~
+    -exigirPuedeModificar(proyecto: Object, usuario: Object) void
+    -esIntegrante(proyecto: Object, usuario: Object) boolean
+  }
+
+  class RubricaService {
+    +crearRubrica(datos: Object, idDocente: int) Promise~Object~
+    -persistirNodos(tx: PrismaTransaction, nodos: Array, idPadre: int) void
+    -transformarPlanoAArbol(criterios: Array) Array
+  }
+
+  class EvaluacionService {
+    +crearEvaluacion(datos: Object, idDocente: int) Promise~Object~
+    +actualizarEvaluacion(id: int, datos: Object) Promise~Object~
+    -calcularNotaNodo(nodo: Object, mapaNotas: Map) Decimal
+  }
+
+  class PlaneService {
+    +crearProyectoPlane(titulo: String) Promise~String~
+    +obtenerTareasPlane(idPlane: String) Promise~Array~
+  }
+
+  EvaluacionService ..> RubricaService : <<use>> (estructura árbol)
+  EvaluacionService ..> ProyectoService : <<use>> (esIntegrante)
+  ProyectoService ..> PlaneService : <<use>> (sync backend-to-backend)

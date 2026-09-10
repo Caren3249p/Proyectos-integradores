@@ -8,7 +8,9 @@ import {
   CheckCircle2,
   GitBranch,
   ArrowUp,
-  ArrowDown
+  ArrowDown,
+  Minimize2,
+  Maximize2
 } from 'lucide-react';
 
 const NodoRubricaItem = ({
@@ -22,12 +24,15 @@ const NodoRubricaItem = ({
   onCambiarNivel,
   onReordenar,
   expandidos,
-  onToggleExpander
+  onToggleExpander,
+  minimizados,
+  onToggleMinimizar
 }) => {
   const [mostrarNiveles, setMostrarNiveles] = useState(true);
   const hijos = criterio.hijos || [];
   const esExpandible = hijos.length > 0;
   const isExpanded = expandidos.has(criterio.id);
+  const cuerpoVisible = !minimizados?.has(criterio.id);
   const esHoja = criterio.esHoja ?? criterio.es_hoja ?? hijos.length === 0;
 
   const sumaPeso = hijos.reduce((sum, h) => sum + (Number(h.peso) || 0), 0);
@@ -56,16 +61,17 @@ const NodoRubricaItem = ({
   return (
     <div className="space-y-2">
       <div
-        className={`p-4 rounded-2xl border-2 ${backgroundNivel} ${borderNivel} space-y-4`}
+        className={`rounded-2xl border-2 ${backgroundNivel} ${borderNivel} ${cuerpoVisible ? 'p-4 space-y-4' : 'px-4 py-2.5'}`}
         style={{ marginLeft: `${nivel * 16}px` }}
       >
         <div className="flex items-start justify-between gap-3">
-          <div className="flex items-center gap-2 flex-1">
+          <div className="flex items-center gap-2 flex-1 min-w-0">
             {esExpandible && (
               <button
                 type="button"
                 onClick={() => onToggleExpander(criterio.id)}
-                className="text-neutral-600 hover:text-neutral-900 transition"
+                className="text-neutral-600 hover:text-neutral-900 transition shrink-0"
+                title={isExpanded ? 'Ocultar hijos' : 'Mostrar hijos'}
               >
                 {isExpanded ? (
                   <ChevronDown className="w-5 h-5" />
@@ -75,10 +81,10 @@ const NodoRubricaItem = ({
               </button>
             )}
             {!esExpandible && (
-              <GitBranch className="w-5 h-5 text-neutral-400" />
+              <GitBranch className="w-5 h-5 text-neutral-400 shrink-0" />
             )}
 
-            <div className="flex-1">
+            <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-xs font-bold text-neutral-600 uppercase">
                   {labelTipo}
@@ -95,11 +101,21 @@ const NodoRubricaItem = ({
                 >
                   {esHoja ? 'Hoja evaluable' : 'Nodo intermedio'}
                 </span>
+                {!cuerpoVisible && (
+                  <>
+                    <span className="text-xs font-semibold text-neutral-800 truncate max-w-[220px]">
+                      {criterio.nombre?.trim() || 'Sin nombre'}
+                    </span>
+                    <span className="text-[10px] font-bold bg-white px-2 py-0.5 rounded-full text-neutral-700">
+                      {Number(criterio.peso) || 0}%
+                    </span>
+                  </>
+                )}
               </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1 shrink-0">
             {hijos.length > 0 && (
               <span
                 className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
@@ -109,6 +125,19 @@ const NodoRubricaItem = ({
                 {sumaPeso.toFixed(1)}%
               </span>
             )}
+            <button
+              type="button"
+              onClick={() => onToggleMinimizar?.(criterio.id)}
+              className="inline-flex items-center justify-center w-7 h-7 rounded-lg border border-neutral-300 bg-white text-neutral-600 hover:border-[#C8102E] hover:text-[#C8102E] hover:bg-white transition"
+              title={cuerpoVisible ? 'Minimizar tarjeta' : 'Ver completa'}
+              aria-label={cuerpoVisible ? 'Minimizar tarjeta' : 'Ver completa'}
+            >
+              {cuerpoVisible ? (
+                <Minimize2 className="w-3.5 h-3.5" />
+              ) : (
+                <Maximize2 className="w-3.5 h-3.5" />
+              )}
+            </button>
             <button
               type="button"
               onClick={() => onReordenar(criterio.id, 'up')}
@@ -138,6 +167,8 @@ const NodoRubricaItem = ({
           </div>
         </div>
 
+        {cuerpoVisible && (
+        <>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div className="sm:col-span-2">
             <label className="block text-xs font-bold text-neutral-700 mb-1">Nombre</label>
@@ -264,6 +295,8 @@ const NodoRubricaItem = ({
             )}
           </div>
         )}
+        </>
+        )}
       </div>
 
       {hijos.length > 0 && (
@@ -298,6 +331,8 @@ const NodoRubricaItem = ({
               onReordenar={onReordenar}
               expandidos={expandidos}
               onToggleExpander={onToggleExpander}
+              minimizados={minimizados}
+              onToggleMinimizar={onToggleMinimizar}
             />
           ))}
         </div>

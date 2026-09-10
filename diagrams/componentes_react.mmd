@@ -1,0 +1,37 @@
+flowchart TB
+  subgraph SPA [Capa de Presentación - React Vite]
+    
+    subgraph Core [Núcleo]
+      Router[React Router DOM]
+      Context[AppContext\nEstado Global JWT]
+    end
+    
+    subgraph Vistas [Componentes de Interfaz]
+      AuthView[Módulo Autenticación]
+      FichaView[Ficha Proyecto View]
+      EvalView[Constructor Rúbricas / Evaluación View]
+    end
+    
+    subgraph Servicios [Integración Externa]
+      ApiService[Capa de Red HTTP/Fetch]
+      PlaneWidget[Componente Avance Plane]
+    end
+
+  end
+
+  Router ..> AuthView
+  Router ..> FichaView
+  Router ..> EvalView
+
+  AuthView --> Context
+  FichaView --> Context
+  EvalView --> Context
+
+  AuthView --> ApiService
+  FichaView --> ApiService
+  EvalView --> ApiService
+  
+  FichaView --> PlaneWidget
+  PlaneWidget --> ApiService
+  
+  ApiService --> |JSON HTTP| BackendInterface((API REST Backend))

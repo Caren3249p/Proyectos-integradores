@@ -1,0 +1,25 @@
+sequenceDiagram
+  autonumber
+  actor U as Cliente Web (SPA)
+  participant API as :BacklogController
+  participant S as :PlaneService
+  participant P as :Plane.so API (Externo)
+
+  U->>API: GET /api/backlog/proyecto/{id} (Bearer JWT)
+  activate API
+  API->>S: obtenerTareasPlane(idPlaneProyecto)
+  activate S
+  
+  S->>P: GET /api/v1/workspaces/.../issues
+  Note right of S: Inyección en servidor de<br/>X-API-Key protegida
+  activate P
+  P-->>S: Array[Issues Crudos]
+  deactivate P
+  
+  S->>S: filtrarEstados(estado == 'hecho')
+  S->>S: calcularPorcentajeAvance()
+  
+  S-->>API: Object {tareas, porcentaje}
+  deactivate S
+  API-->>U: HTTP 200 JSON
+  deactivate API

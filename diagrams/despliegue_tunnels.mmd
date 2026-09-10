@@ -1,0 +1,30 @@
+flowchart TB
+  subgraph ClienteMobile [Nodo Cliente: Dispositivo Móvil / Desktop]
+    B[Navegador Web SPA]
+  end
+
+  subgraph DevTunnels [Nodo Intermediario: Proxy Reverso]
+    T[Túnel HTTPS Público VS Code]
+  end
+
+  subgraph ServidorLocal [Nodo Host: Máquina de Desarrollo]
+    subgraph CapaPresentacion [Contenedor Frontend]
+      SPA[React + Vite\nPuerto TCP 3312]
+    end
+    
+    subgraph CapaAplicacion [Contenedor Backend]
+      API[Node.js + Express\nPuerto TCP 3000]
+    end
+    
+    subgraph CapaDatos [Contenedor Persistencia]
+      DB[(PostgreSQL\nPuerto TCP 5432)]
+      FS[File System\n/uploads]
+    end
+  end
+
+  ClienteMobile -->|HTTPS Request| DevTunnels
+  DevTunnels -->|Port Forwarding| SPA
+  DevTunnels -->|Port Forwarding| API
+  SPA -->|REST API / JWT| API
+  API -->|TCP / Prisma Protocol| DB
+  API -->|I/O local| FS

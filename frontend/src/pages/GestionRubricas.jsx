@@ -6,7 +6,9 @@ import {
   AlertCircle,
   CheckCircle2,
   Sparkles,
-  Layers
+  Layers,
+  Minimize2,
+  Maximize2
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { Button, FloatingInput } from '../components/UIComponents';
@@ -100,6 +102,9 @@ const reordenarNodos = (nodos, id, direccion) => {
 const contarNodos = (nodos = []) =>
   nodos.reduce((total, nodo) => total + 1 + contarNodos(nodo.hijos || []), 0);
 
+const recogerIds = (nodos = []) =>
+  nodos.flatMap((nodo) => [nodo.id, ...recogerIds(nodo.hijos || [])]);
+
 export const GestionRubricas = () => {
   const { rubrics, addRubric, showToast, user } = useApp();
 
@@ -109,6 +114,7 @@ export const GestionRubricas = () => {
     crearNodo({ tipo: 'CORTE_ACADEMICO', esHoja: true, peso: 100 })
   ]);
   const [expandidos, setExpandidos] = useState(new Set());
+  const [minimizados, setMinimizados] = useState(new Set());
 
   const validacion = validarEstructuraJerarquica(criterios);
   const isValid = validacion.esValido;
@@ -120,6 +126,18 @@ export const GestionRubricas = () => {
     else next.add(id);
     setExpandidos(next);
   };
+
+  const toggleMinimizar = (id) => {
+    setMinimizados((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const minimizarTodas = () => setMinimizados(new Set(recogerIds(criterios)));
+  const expandirTodas = () => setMinimizados(new Set());
 
   const agregarSubcriterio = (parentId, nivelPadre = 0) => {
     const tipoHijo = nivelPadre === 0 ? 'ACTIVIDAD' : 'CRITERIO_EVALUABLE';
@@ -230,6 +248,7 @@ export const GestionRubricas = () => {
     setDescripcion('');
     setCriterios([crearNodo({ tipo: 'CORTE_ACADEMICO', esHoja: true, peso: 100 })]);
     setExpandidos(new Set());
+    setMinimizados(new Set());
   };
 
   return (
@@ -318,22 +337,46 @@ export const GestionRubricas = () => {
             </div>
 
             <div className="space-y-3 pt-4 border-t border-neutral-100">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
                 <span className="text-xs font-bold text-neutral-700 uppercase tracking-wider flex items-center gap-1">
                   <Layers className="w-4 h-4" />
                   Estructura jerárquica
                 </span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  icon={Plus}
-                  onClick={(e) => {
-                    e.preventDefault();
-                    setCriterios((prev) => [...prev, crearNodo({ tipo: 'CORTE_ACADEMICO', esHoja: true, peso: 0 })]);
-                  }}
-                >
-                  Agregar corte
-                </Button>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    icon={Minimize2}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      minimizarTodas();
+                    }}
+                  >
+                    Minimizar todas
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    icon={Maximize2}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      expandirTodas();
+                    }}
+                  >
+                    Ver completas
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    icon={Plus}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setCriterios((prev) => [...prev, crearNodo({ tipo: 'CORTE_ACADEMICO', esHoja: true, peso: 0 })]);
+                    }}
+                  >
+                    Agregar corte
+                  </Button>
+                </div>
               </div>
 
               <div className="space-y-2">
@@ -351,6 +394,8 @@ export const GestionRubricas = () => {
                     onReordenar={(id, direccion) => setCriterios((prev) => reordenarNodos(prev, id, direccion))}
                     expandidos={expandidos}
                     onToggleExpander={toggleExpanded}
+                    minimizados={minimizados}
+                    onToggleMinimizar={toggleMinimizar}
                   />
                 ))}
               </div>

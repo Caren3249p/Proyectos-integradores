@@ -1,0 +1,18 @@
+stateDiagram-v2
+  [*] --> Abierta : POST /versiones (Creación vN.0)
+  
+  state Abierta {
+    [*] --> SinArchivos
+    SinArchivos --> ConArchivos : POST /archivos (adjuntar)
+    ConArchivos --> ConArchivos : POST /archivos (adjuntar adicional)
+    ConArchivos --> SinArchivos : DELETE /archivos (vaciar)
+  }
+  
+  Abierta --> Finalizada : PATCH es_final = true
+  
+  state Finalizada {
+    BloqueoMutacion : Las peticiones POST/DELETE/PUT son interceptadas.
+    BloqueoMutacion --> BloqueoMutacion : Retorno HTTP 403 / 400
+  }
+  
+  Finalizada --> [*]
