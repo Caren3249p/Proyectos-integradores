@@ -15,6 +15,7 @@ import archivoRoutes from './routes/archivoRoutes.js';
 import rubricaRoutes from './routes/rubricaRoutes.js';
 import evaluacionRoutes from './routes/evaluacionRoutes.js';
 import usuarioRoutes from './routes/usuarioRoutes.js';
+import githubProjectRoutes from './routes/githubProjectRoutes.js';
 
 dotenv.config();
 
@@ -60,6 +61,7 @@ app.use('/api', archivoRoutes);
 app.use('/api/rubricas', rubricaRoutes);
 app.use('/api', evaluacionRoutes);
 app.use('/api/usuarios', usuarioRoutes);
+app.use('/api/projects', githubProjectRoutes);
 
 app.get('/', (req, res) => {
   res.json({ message: 'API de Plataforma de Proyectos Integradores' });

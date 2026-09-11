@@ -60,6 +60,9 @@ CREATE TABLE "usuario" (
     "rol" VARCHAR(20) NOT NULL,
     "fecha_registro" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "github_username" VARCHAR(100),
+    "github_user_id" VARCHAR(100),
+    "github_access_token_encrypted" TEXT,
+    "github_connected_at" TIMESTAMP(3),
     "plane_user_id" VARCHAR(100),
     CONSTRAINT "usuario_pkey" PRIMARY KEY ("id_usuario")
 );
@@ -130,8 +133,30 @@ CREATE TABLE "repositorio" (
     "id_proyecto" INTEGER NOT NULL,
     "url" VARCHAR(500) NOT NULL,
     "es_privado" BOOLEAN NOT NULL DEFAULT false,
+    "github_repo_id" VARCHAR(100),
+    "github_owner" VARCHAR(100),
+    "github_name" VARCHAR(150),
+    "origen" VARCHAR(30) NOT NULL DEFAULT 'manual',
+    "fecha_enlace" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT "repositorio_pkey" PRIMARY KEY ("id_repositorio")
 );
+
+CREATE TABLE "github_oauth_state" (
+    "id" SERIAL NOT NULL,
+    "state" VARCHAR(128) NOT NULL,
+    "id_usuario" INTEGER NOT NULL,
+    "expires_at" TIMESTAMP(3) NOT NULL,
+    "used_at" TIMESTAMP(3),
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "github_oauth_state_pkey" PRIMARY KEY ("id")
+);
+
+CREATE UNIQUE INDEX "usuario_github_user_id_key" ON "usuario"("github_user_id");
+CREATE UNIQUE INDEX "repositorio_github_repo_id_key" ON "repositorio"("github_repo_id");
+CREATE UNIQUE INDEX "github_oauth_state_state_key" ON "github_oauth_state"("state");
+CREATE INDEX "github_oauth_state_expires_at_idx" ON "github_oauth_state"("expires_at");
+ALTER TABLE "github_oauth_state" ADD CONSTRAINT "github_oauth_state_id_usuario_fkey"
+    FOREIGN KEY ("id_usuario") REFERENCES "usuario"("id_usuario") ON DELETE CASCADE ON UPDATE CASCADE;
 
 CREATE TABLE "rubrica" (
     "id_rubrica" SERIAL NOT NULL,

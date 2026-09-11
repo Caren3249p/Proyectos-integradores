@@ -11,9 +11,13 @@ import {
   guardarCamposTecnicos,
   obtenerDetalleProyecto,
   quitarIntegrante,
-  listarMisProyectos
+  listarMisProyectos,
+  listarRepositoriosGithub,
+    listarOrganizacionesGithub,
+    enlazarRepositorioGithub,
+    crearRepositorioGithub
 } from '../services/proyectoService.js';
-import { camposTecnicosSchema, crearProyectoSchema, actualizarProyectoSchema, integranteSchema, repositorioSchema } from '../utils/validators.js';
+import { camposTecnicosSchema, crearProyectoSchema, actualizarProyectoSchema, integranteSchema, repositorioSchema, githubRepositorySelectionSchema, githubRepositoryCreateSchema } from '../utils/validators.js';
 
 const responderError = (res, error) => {
   if (error.name === 'ZodError') return res.status(400).json({ error: 'Datos inválidos', detalles: error.errors });
@@ -52,7 +56,7 @@ export const eliminar = async (req, res) => {
 };
 
 export const agregar = async (req, res) => {
-  try { res.status(201).json({ message: 'Integrante agregado exitosamente', integrante: await agregarIntegrante(id(req), integranteSchema.parse(req.body).id_usuario, req.usuario) }); }
+  try { res.status(201).json({ message: 'Integrante agregado exitosamente', integrante: await agregarIntegrante(id(req), integranteSchema.parse(req.body).correo, req.usuario) }); }
   catch (error) { responderError(res, error); }
 };
 
@@ -74,6 +78,22 @@ export const enlazar = async (req, res) => {
 export const desenlazar = async (req, res) => {
   try { await desenlazarRepositorio(id(req), req.usuario); res.json({ message: 'Repositorio desenlazado exitosamente' }); }
   catch (error) { responderError(res, error); }
+};
+
+export const githubRepos = async (req, res) => {
+  try { res.json({ repositorios: await listarRepositoriosGithub(req.usuario) }); } catch (error) { responderError(res, error); }
+};
+
+export const githubOrgs = async (req, res) => {
+  try { res.json({ organizaciones: await listarOrganizacionesGithub(req.usuario) }); } catch (error) { responderError(res, error); }
+};
+
+export const enlazarGithub = async (req, res) => {
+  try { res.status(201).json({ repositorio: await enlazarRepositorioGithub(id(req), githubRepositorySelectionSchema.parse(req.body), req.usuario) }); } catch (error) { responderError(res, error); }
+};
+
+export const crearGithub = async (req, res) => {
+  try { res.status(201).json({ repositorio: await crearRepositorioGithub(id(req), githubRepositoryCreateSchema.parse(req.body), req.usuario) }); } catch (error) { responderError(res, error); }
 };
 
 // Docente: listar proyectos sin asesor asignado

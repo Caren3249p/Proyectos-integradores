@@ -21,12 +21,16 @@ model Usuario {
   rol                 String               @db.VarChar(20)
   fecha_registro      DateTime             @default(now())
   github_username     String?              @unique @db.VarChar(100)
+  github_user_id      String?              @unique @db.VarChar(100)
+  github_access_token_encrypted String?    @db.Text
+  github_connected_at DateTime?
   plane_user_id       String?              @unique @db.VarChar(100)
   evaluaciones        Evaluacion[]
   integrantes         IntegranteProyecto[]
   proyectos_creados   Proyecto[]           @relation("ProyectoCreador")
   proyectos_asesorados Proyecto[]          @relation("ProyectoDocente")
   rubricas            Rubrica[]
+  github_oauth_states GithubOAuthState[]
 
   @@map("usuario")
 }
@@ -121,9 +125,27 @@ model Repositorio {
   id_proyecto    Int      @unique
   url            String   @db.VarChar(500)
   es_privado     Boolean  @default(false)
+  github_repo_id String?  @unique @db.VarChar(100)
+  github_owner   String?  @db.VarChar(100)
+  github_name    String?  @db.VarChar(150)
+  origen         String   @default("manual") @db.VarChar(30)
+  fecha_enlace   DateTime @default(now())
   proyecto       Proyecto @relation(fields: [id_proyecto], references: [id_proyecto], onDelete: Cascade)
 
   @@map("repositorio")
+}
+
+model GithubOAuthState {
+  id         Int      @id @default(autoincrement())
+  state      String   @unique @db.VarChar(128)
+  id_usuario Int
+  expires_at DateTime
+  used_at    DateTime?
+  created_at DateTime @default(now())
+  usuario    Usuario  @relation(fields: [id_usuario], references: [id_usuario], onDelete: Cascade)
+
+  @@index([expires_at])
+  @@map("github_oauth_state")
 }
 
 model Rubrica {

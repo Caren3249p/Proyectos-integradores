@@ -7,6 +7,7 @@ import {
   FolderGit2, 
   Upload, 
   ExternalLink, 
+  Trash2,
   Users, 
   Calendar,
   FileCheck,
@@ -20,7 +21,7 @@ import { Button, Badge, Card, FloatingInput } from '../components/UIComponents';
 import { ModalCrearProyecto } from '../components/ModalCrearProyecto';
 
 export const FichaProyecto = () => {
-  const { currentProject, currentProjectIssues, selectedTab, setSelectedTab, addVersion, addActa, addProjectTask, updateTaskState, syncProjectBacklog, showToast } = useApp();
+  const { user, currentProject, currentProjectIssues, selectedTab, setSelectedTab, addVersion, addActa, addProjectTask, updateTaskState, syncProjectBacklog, showToast, deleteProject, addProjectMember, removeProjectMember } = useApp();
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   // Sync Backlog con Plane al abrir el tab
@@ -44,6 +45,8 @@ export const FichaProyecto = () => {
   // Kanban State
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [showTaskInput, setShowTaskInput] = useState(false);
+  const [memberEmail, setMemberEmail] = useState('');
+  const [memberError, setMemberError] = useState('');
 
   if (!currentProject) {
     return (
@@ -121,6 +124,25 @@ export const FichaProyecto = () => {
     setActaCompromisos('');
   };
 
+  const handleDeleteProject = async () => {
+    const confirmed = window.confirm(`¿Seguro que deseas eliminar el proyecto "${currentProject.titulo}"? Esta acción eliminará la ficha y sus datos locales, pero no borrará el repositorio de GitHub.`);
+    if (confirmed) await deleteProject(currentProject.id);
+  };
+
+  const handleAddMember = async (event) => {
+    event.preventDefault();
+    const email = memberEmail.trim().toLowerCase();
+    if (!/^[^\s@]+@upb\.edu\.co$/i.test(email)) {
+      setMemberError('Usa un correo institucional (@upb.edu.co).');
+      return;
+    }
+    const added = await addProjectMember(currentProject.id, email);
+    if (added) {
+      setMemberEmail('');
+      setMemberError('');
+    }
+  };
+
   const handleAddTask = (e) => {
     e.preventDefault();
     if (!newTaskTitle.trim()) return;
@@ -147,16 +169,29 @@ export const FichaProyecto = () => {
         </div>
 
         <div className="flex items-center gap-3">
-          <a
-            href={currentProject?.repositorio?.url || 'https://github.com/upb/'}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold bg-neutral-900 text-white hover:bg-neutral-800 transition-all shadow-sm"
-          >
-            <FolderGit2 className="w-4 h-4" />
-            <span>GitHub Repo</span>
-            <ExternalLink className="w-3 h-3 text-neutral-400" />
-          </a>
+          {currentProject?.estado === 'borrador' && (
+            <Button
+              type="button"
+              variant="danger"
+              icon={Trash2}
+              onClick={handleDeleteProject}
+              title="Eliminar proyecto"
+            >
+              Eliminar
+            </Button>
+          )}
+          {currentProject?.repositorio?.url && (
+            <a
+              href={currentProject.repositorio.url}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold bg-neutral-900 text-white hover:bg-neutral-800 transition-all shadow-sm"
+            >
+              <FolderGit2 className="w-4 h-4" />
+              <span>{currentProject.repositorio.github_owner && currentProject.repositorio.github_name ? `${currentProject.repositorio.github_owner}/${currentProject.repositorio.github_name}` : 'Abrir repositorio'}</span>
+              <ExternalLink className="w-3 h-3 text-neutral-400" />
+            </a>
+          )}
         </div>
       </div>
 
@@ -237,12 +272,27 @@ export const FichaProyecto = () => {
                       <p className="text-xs font-bold text-neutral-800">{m.nombre}</p>
                       <p className="text-[10px] text-neutral-400">{m.email}</p>
                     </div>
-                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-white text-neutral-600 border border-neutral-200">
-                      {m.rol}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-white text-neutral-600 border border-neutral-200">
+                        {m.id === currentProject.creador_id ? 'Dueño' : 'Integrante'}
+                      </span>
+                      {user?.id === currentProject.creador_id && m.id !== currentProject.creador_id && (
+                        <button type="button" onClick={() => removeProjectMember(currentProject.id, m.id)} className="text-[10px] text-red-600 hover:underline">Quitar</button>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
+              {user?.id === currentProject.creador_id && (
+                <form onSubmit={handleAddMember} className="mt-4 pt-4 border-t border-neutral-200 space-y-2">
+                  <label htmlFor="project-member-email" className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">Agregar por correo</label>
+                  <div className="flex gap-2">
+                    <input id="project-member-email" type="email" value={memberEmail} onChange={(event) => setMemberEmail(event.target.value)} placeholder="compañero@upb.edu.co" className="min-w-0 flex-1 p-2.5 text-xs bg-white rounded-xl border border-neutral-200 outline-none focus:border-[#C8102E]" />
+                    <Button type="submit" size="sm" variant="secondary">Agregar</Button>
+                  </div>
+                  {memberError && <p className="text-[11px] text-red-600">{memberError}</p>}
+                </form>
+              )}
             </Card>
           </div>
         </div>

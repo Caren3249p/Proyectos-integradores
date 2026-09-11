@@ -4,6 +4,13 @@ import { api } from '../services/api';
 
 const AppContext = createContext();
 
+const getApiError = (response, fallback) => {
+  if (Array.isArray(response?.detalles) && response.detalles.length > 0) {
+    return response.detalles.map((detail) => detail.message).filter(Boolean).join(' ');
+  }
+  return response?.error || fallback;
+};
+
 const normalizeNodoRubrica = (criterio, parentId = null) => {
   const hijosRaw = Array.isArray(criterio?.hijos) ? criterio.hijos : [];
   const id = criterio?.id_criterio ?? criterio?.id;
@@ -97,6 +104,7 @@ export const AppProvider = ({ children }) => {
   const [notifications, setNotifications] = useState(mockNotifications);
   const [backendConnected, setBackendConnected] = useState(false);
   const [activeNotificationToast, setActiveNotificationToast] = useState(null);
+  const [githubConnection, setGithubConnection] = useState({ connected: false, username: null });
 
   // Sync projects with localStorage
   useEffect(() => {
@@ -144,6 +152,27 @@ export const AppProvider = ({ children }) => {
       }
     };
     checkBackend();
+  }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (!params.get('github')) return;
+    const result = params.get('github');
+    const message = params.get('message');
+    window.history.replaceState({}, document.title, window.location.pathname);
+    if (result !== 'connected') {
+      showToast(message || 'No se pudo conectar con GitHub', 'error');
+      return;
+    }
+    api.get('/auth/me').then((res) => {
+      if (!res?.usuario) return;
+      const backendUser = res.usuario;
+      const updatedUser = { ...user, id: backendUser.id_usuario, nombre: backendUser.nombre, correo: backendUser.correo, rol: backendUser.rol, github_connected: true, github_username: backendUser.github_username };
+      setUser(updatedUser);
+      localStorage.setItem('upb_user', JSON.stringify(updatedUser));
+      setGithubConnection({ connected: true, username: backendUser.github_username });
+      showToast(`GitHub conectado como @${backendUser.github_username}`);
+    });
   }, []);
 
   // Fetch projects from backend if connected and logged in
@@ -226,6 +255,19 @@ export const AppProvider = ({ children }) => {
   }, [backendConnected, user]);
 
   useEffect(() => {
+    if (!backendConnected || !user || !localStorage.getItem('upb_token')) return;
+    api.get('/auth/github/status').then((res) => {
+      if (!res || res.error) return;
+      setGithubConnection({ connected: Boolean(res.connected), username: res.username || null });
+      if (user.github_connected !== Boolean(res.connected) || user.github_username !== res.username) {
+        const updatedUser = { ...user, github_connected: Boolean(res.connected), github_username: res.username || null };
+        setUser(updatedUser);
+        localStorage.setItem('upb_user', JSON.stringify(updatedUser));
+      }
+    });
+  }, [backendConnected, user?.id]);
+
+  useEffect(() => {
     const fetchRubrics = async () => {
       if (!backendConnected || user?.rol !== 'docente' || !localStorage.getItem('upb_token')) return;
       const res = await api.get('/rubricas');
@@ -265,10 +307,13 @@ export const AppProvider = ({ children }) => {
         nombre: res.usuario.nombre,
         correo: res.usuario.correo,
         rol: res.usuario.rol,
+        github_connected: Boolean(res.usuario.github_connected),
+        github_username: res.usuario.github_username || null,
         avatar: 'https://i.pravatar.cc/150?u=' + res.usuario.correo
       };
       localStorage.setItem('upb_user', JSON.stringify(userObj));
       setUser(userObj);
+      setGithubConnection({ connected: userObj.github_connected, username: userObj.github_username });
       if (userObj.rol === 'admin') setCurrentView('dashboard_admin');
       else if (userObj.rol === 'docente') setCurrentView('dashboard_docente');
       else setCurrentView('dashboard_estudiante');
@@ -315,6 +360,87 @@ export const AppProvider = ({ children }) => {
     showToast('Sesion cerrada correctamente', 'info');
   };
 
+  const deleteProject = async (projectId) => {
+    const token = localStorage.getItem('upb_token');
+    if (!token) {
+      showToast('Necesitas una sesión activa para eliminar el proyecto.', 'error');
+      return false;
+    }
+
+    const res = await api.delete(`/proyectos/${projectId}`);
+    if (res?.error) {
+      showToast(getApiError(res, 'No se pudo eliminar el proyecto'), 'error');
+      return false;
+    }
+
+    setProjects((previousProjects) => previousProjects.filter((project) => project.id !== projectId));
+    setSelectedProjectId(null);
+    setCurrentView('dashboard_estudiante');
+    showToast('Proyecto eliminado correctamente', 'info');
+    return true;
+  };
+
+  const addProjectMember = async (projectId, correo) => {
+    const res = await api.post(`/proyectos/${projectId}/integrantes`, { correo: correo.trim().toLowerCase() });
+    if (res?.error || !res?.integrante) {
+      showToast(getApiError(res, 'No se pudo agregar el integrante'), 'error');
+      return false;
+    }
+    const integrante = res.integrante;
+    const normalizedMember = {
+      id: integrante.id_usuario,
+      nombre: integrante.usuario?.nombre || correo,
+      email: integrante.usuario?.correo || correo,
+      rol: integrante.usuario?.rol || 'estudiante'
+    };
+    setProjects((previousProjects) => previousProjects.map((project) => project.id === projectId
+      ? { ...project, integrantes: [...(project.integrantes || []), normalizedMember] }
+      : project));
+    showToast('Integrante agregado correctamente');
+    return true;
+  };
+
+  const removeProjectMember = async (projectId, userId) => {
+    const res = await api.delete(`/proyectos/${projectId}/integrantes/${userId}`);
+    if (res?.error || res === null) {
+      showToast(getApiError(res, 'No se pudo eliminar el integrante'), 'error');
+      return false;
+    }
+    setProjects((previousProjects) => previousProjects.map((project) => project.id === projectId
+      ? { ...project, integrantes: (project.integrantes || []).filter((member) => member.id !== userId) }
+      : project));
+    showToast('Integrante eliminado del proyecto', 'info');
+    return true;
+  };
+
+  const connectGithub = async () => {
+    const res = await api.get('/auth/github/url');
+    if (!res?.url) throw new Error(res?.error || 'No se pudo iniciar la conexión con GitHub');
+    window.location.assign(res.url);
+  };
+
+  const disconnectGithub = async () => {
+    const res = await api.delete('/auth/github');
+    if (res?.error) throw new Error(res.error);
+    const updatedUser = { ...user, github_connected: false, github_username: null };
+    setUser(updatedUser);
+    localStorage.setItem('upb_user', JSON.stringify(updatedUser));
+    setGithubConnection({ connected: false, username: null });
+    showToast('Cuenta de GitHub desconectada', 'info');
+  };
+
+  const fetchGithubRepositories = async () => {
+    const res = await api.get('/proyectos/github/repos');
+    if (res?.error) throw new Error(res.error);
+    return res?.repositorios || [];
+  };
+
+  const fetchGithubOrganizations = async () => {
+    const res = await api.get('/proyectos/github/organizations');
+    if (res?.error) throw new Error(res.error);
+    return res?.organizaciones || [];
+  };
+
   const createProject = async (projectData) => {
     const token = localStorage.getItem('upb_token');
 
@@ -323,8 +449,11 @@ export const AppProvider = ({ children }) => {
       try {
         const res = await api.post('/proyectos', {
           titulo: projectData.titulo,
-          descripcion: projectData.descripcion || ''
+          descripcion: projectData.descripcion || '',
+          integrantes: projectData.memberEmails || []
         });
+
+        if (res?.error) throw new Error(getApiError(res, 'No se pudo crear el proyecto'));
 
         if (res && res.proyecto) {
           const backendProject = res.proyecto;
@@ -340,8 +469,19 @@ export const AppProvider = ({ children }) => {
             });
           }
 
-          // Guardar repositorio si lo hay
-          if (projectData.repoUrl && projectData.repoUrl !== 'https://github.com/upb/') {
+          let linkedRepository = null;
+          if (projectData.githubMode === 'existing') {
+            const repoRes = await api.post(`/proyectos/${backendProject.id_proyecto}/repositorio/github`, {
+              owner: projectData.githubOwner,
+              repo: projectData.githubRepo
+            });
+            if (repoRes?.error) throw new Error(getApiError(repoRes, 'No se pudo enlazar el repositorio'));
+            linkedRepository = repoRes.repositorio;
+          } else if (projectData.githubMode === 'create') {
+            const repoRes = await api.post(`/proyectos/${backendProject.id_proyecto}/repositorio/github/create`, projectData.githubCreate);
+            if (repoRes?.error) throw new Error(getApiError(repoRes, 'No se pudo crear el repositorio'));
+            linkedRepository = repoRes.repositorio;
+          } else if (projectData.repoUrl && projectData.repoUrl !== 'https://github.com/upb/') {
             await api.post(`/proyectos/${backendProject.id_proyecto}/repositorio`, {
               url: projectData.repoUrl,
               es_privado: false
@@ -365,7 +505,7 @@ export const AppProvider = ({ children }) => {
               id: i.id_usuario || i.usuario?.id_usuario,
               nombre: i.usuario?.nombre || user?.nombre,
               email: i.usuario?.correo || user?.correo,
-              rol: 'Integrante'
+              rol: (i.id_usuario || i.usuario?.id_usuario) === backendProject.id_creador ? 'Dueño' : 'Integrante'
             })),
             campos_tecnicos: {
               lenguaje_principal: projectData.lenguaje || '',
@@ -374,7 +514,7 @@ export const AppProvider = ({ children }) => {
               es_movil: projectData.esMovil || false,
               entorno_despliegue: projectData.entornoDespliegue || ''
             },
-            repositorio: { url: projectData.repoUrl || '', es_privado: false },
+            repositorio: linkedRepository || (projectData.repoUrl ? { url: projectData.repoUrl, es_privado: false } : null),
             versiones: [{ id: Date.now(), numero: 'v1.0', descripcion: 'Versión inicial', es_final: false, fecha: new Date().toISOString().split('T')[0], archivos: [] }],
             tareas: [],
             actas: [],
@@ -752,10 +892,18 @@ export const AppProvider = ({ children }) => {
       setRubrics,
       notifications,
       backendConnected,
+      githubConnection,
       activeNotificationToast,
       showToast,
       login,
       logout,
+      deleteProject,
+      addProjectMember,
+      removeProjectMember,
+      connectGithub,
+      disconnectGithub,
+      fetchGithubRepositories,
+      fetchGithubOrganizations,
       createProject,
       syncProjectBacklog,
       addProjectTask,

@@ -29,7 +29,7 @@ const idSchema = z.coerce.number().int().positive('El identificador debe ser vá
 export const crearProyectoSchema = z.object({
   titulo: z.string().trim().min(1, 'El título es obligatorio').max(150, 'El título no puede superar 150 caracteres'),
   descripcion: z.string().trim().optional(),
-  integrantes: z.array(idSchema).min(1, 'El proyecto debe tener al menos un integrante').optional()
+  integrantes: z.array(z.string().trim().email('El correo del integrante no es válido').regex(correoRegex, 'El correo debe ser institucional (@upb.edu.co)')).optional()
 });
 
 export const actualizarProyectoSchema = z.object({
@@ -38,7 +38,9 @@ export const actualizarProyectoSchema = z.object({
   estado: z.enum(['borrador', 'en_revision', 'publicado'], { errorMap: () => ({ message: 'El estado del proyecto no es válido' }) }).optional()
 }).refine((data) => Object.keys(data).length > 0, 'Debe enviar al menos un campo para actualizar');
 
-export const integranteSchema = z.object({ id_usuario: idSchema });
+export const integranteSchema = z.object({
+  correo: z.string().trim().email('El correo del integrante no es válido').regex(correoRegex, 'El correo debe ser institucional (@upb.edu.co)')
+});
 
 export const camposTecnicosSchema = z.object({
   lenguaje_principal: z.string().trim().optional(),
@@ -55,6 +57,19 @@ export const camposTecnicosSchema = z.object({
 export const repositorioSchema = z.object({
   url: z.string().url('La URL del repositorio no es válida').regex(/^https:\/\/(www\.)?(github|gitlab)\.com\/[\w.-]+\/[\w.-]+(?:\/.*)?$/i, 'El repositorio debe pertenecer a GitHub o GitLab'),
   es_privado: z.boolean().optional().default(false)
+});
+
+export const githubRepositorySelectionSchema = z.object({
+  owner: z.string().trim().min(1).max(100),
+  repo: z.string().trim().min(1).max(150)
+});
+
+export const githubRepositoryCreateSchema = z.object({
+  name: z.string().trim().regex(/^[A-Za-z0-9._-]+$/, 'El nombre del repositorio contiene caracteres no válidos').max(100),
+  description: z.string().trim().max(350).optional(),
+  private: z.boolean().default(false),
+  organization: z.string().trim().max(100).nullable().optional(),
+  auto_init: z.boolean().default(false)
 });
 
 const nivelDesempenoInputSchema = z.object({

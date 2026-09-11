@@ -1,10 +1,10 @@
-﻿import React, { useState } from 'react';
-import { X, FolderPlus, Code, Sparkles } from 'lucide-react';
+﻿import React, { useEffect, useState } from 'react';
+import { X, FolderPlus, Code, Github, RefreshCw } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { Button, FloatingInput } from './UIComponents';
 
 export const ModalCrearProyecto = ({ isOpen, onClose }) => {
-  const { user, createProject } = useApp();
+  const { user, createProject, githubConnection, connectGithub, disconnectGithub, fetchGithubRepositories, fetchGithubOrganizations } = useApp();
 
   const [titulo, setTitulo] = useState('');
   const [descripcion, setDescripcion] = useState('');
@@ -15,13 +15,70 @@ export const ModalCrearProyecto = ({ isOpen, onClose }) => {
   const [baseDatos, setBaseDatos] = useState('PostgreSQL');
   const [esMovil, setEsMovil] = useState(false);
   const [entornoDespliegue, setEntornoDespliegue] = useState('Vercel + Railway');
-  const [repoUrl, setRepoUrl] = useState('https://github.com/upb/');
+  const [githubMode, setGithubMode] = useState('none');
+  const [githubRepos, setGithubRepos] = useState([]);
+  const [githubOrganizations, setGithubOrganizations] = useState([]);
+  const [selectedGithubRepo, setSelectedGithubRepo] = useState('');
+  const [githubName, setGithubName] = useState('');
+  const [githubDescription, setGithubDescription] = useState('');
+  const [githubPrivate, setGithubPrivate] = useState(true);
+  const [githubOrganization, setGithubOrganization] = useState('');
+  const [githubLoading, setGithubLoading] = useState(false);
+  const [githubError, setGithubError] = useState('');
+  const [memberEmail, setMemberEmail] = useState('');
+  const [memberEmails, setMemberEmails] = useState([]);
+  const [memberError, setMemberError] = useState('');
+
+  const handleConnectGithub = async () => {
+    setGithubError('');
+    try {
+      await connectGithub();
+    } catch (error) {
+      setGithubError(error.message || 'No se pudo iniciar la conexión con GitHub.');
+    }
+  };
+
+  const handleAddMember = () => {
+    const email = memberEmail.trim().toLowerCase();
+    if (!/^[^\s@]+@upb\.edu\.co$/i.test(email)) {
+      setMemberError('El correo del integrante debe ser institucional (@upb.edu.co).');
+      return;
+    }
+    if (email === user?.correo?.toLowerCase() || memberEmails.includes(email)) {
+      setMemberError('Ese usuario ya está incluido en el proyecto.');
+      return;
+    }
+    setMemberEmails((current) => [...current, email]);
+    setMemberEmail('');
+    setMemberError('');
+  };
+
+  useEffect(() => {
+    if (!isOpen || !githubConnection.connected || githubMode === 'none') return;
+    setGithubLoading(true);
+    setGithubError('');
+    Promise.all([
+      githubMode === 'existing' ? fetchGithubRepositories() : Promise.resolve([]),
+      githubMode === 'create' ? fetchGithubOrganizations() : Promise.resolve([])
+    ]).then(([repos, organizations]) => {
+      setGithubRepos(repos);
+      setGithubOrganizations(organizations);
+    }).catch((error) => setGithubError(error.message)).finally(() => setGithubLoading(false));
+  }, [isOpen, githubConnection.connected, githubMode]);
 
   if (!isOpen) return null;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!titulo.trim()) return;
+    if (githubMode === 'existing' && !selectedGithubRepo) {
+      setGithubError('Selecciona un repositorio existente.');
+      return;
+    }
+    if (githubMode === 'create' && !githubName.trim()) {
+      setGithubError('Escribe el nombre del repositorio nuevo.');
+      return;
+    }
 
     const created = await createProject({
       titulo,
@@ -33,7 +90,17 @@ export const ModalCrearProyecto = ({ isOpen, onClose }) => {
       baseDatos,
       esMovil,
       entornoDespliegue,
-      repoUrl
+      memberEmails,
+      githubMode,
+      githubOwner: githubRepos.find((repo) => String(repo.id) === selectedGithubRepo)?.owner?.login,
+      githubRepo: githubRepos.find((repo) => String(repo.id) === selectedGithubRepo)?.name,
+      githubCreate: {
+        name: githubName,
+        description: githubDescription || descripcion,
+        private: githubPrivate,
+        organization: githubOrganization || null,
+        auto_init: true
+      }
     });
 
     if (created) onClose();
@@ -99,6 +166,32 @@ export const ModalCrearProyecto = ({ isOpen, onClose }) => {
           </div>
 
           <div className="pt-3 border-t border-neutral-100">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-[#C8102E] mb-3">Integrantes adicionales</h3>
+            <div className="flex gap-2">
+              <input
+                type="email"
+                value={memberEmail}
+                onChange={(e) => setMemberEmail(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddMember(); } }}
+                placeholder="compañero@upb.edu.co"
+                className="flex-1 p-3 text-xs bg-neutral-50 rounded-xl border border-neutral-200 outline-none focus:border-[#C8102E]"
+              />
+              <Button type="button" variant="secondary" onClick={handleAddMember}>Agregar</Button>
+            </div>
+            {memberError && <p className="text-xs text-red-600 mt-2">{memberError}</p>}
+            {memberEmails.length > 0 && (
+              <div className="flex flex-wrap gap-2 mt-3">
+                {memberEmails.map((email) => (
+                  <span key={email} className="inline-flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-neutral-100 text-[11px] text-neutral-700">
+                    {email}
+                    <button type="button" onClick={() => setMemberEmails((current) => current.filter((item) => item !== email))} className="text-neutral-400 hover:text-red-600" aria-label={`Quitar ${email}`}>×</button>
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="pt-3 border-t border-neutral-100">
             <h3 className="text-xs font-bold uppercase tracking-wider text-[#C8102E] mb-3 flex items-center gap-1.5">
               <Code className="w-3.5 h-3.5" />
               Campos Tecnicos y Stack
@@ -128,11 +221,60 @@ export const ModalCrearProyecto = ({ isOpen, onClose }) => {
           </div>
 
           <div className="pt-3 border-t border-neutral-100">
-            <FloatingInput
-              label="URL Repositorio GitHub / GitLab"
-              value={repoUrl}
-              onChange={(e) => setRepoUrl(e.target.value)}
-            />
+            <h3 className="text-xs font-bold uppercase tracking-wider text-[#C8102E] mb-3 flex items-center gap-1.5">
+              <Github className="w-3.5 h-3.5" />
+              Repositorio de código
+            </h3>
+            {!githubConnection.connected ? (
+              <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-4 flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold text-neutral-800">Conecta GitHub para enlazar o crear un repositorio</p>
+                  <p className="text-[11px] text-neutral-500 mt-1">La autorización se realiza directamente con GitHub.</p>
+                </div>
+                <Button type="button" variant="secondary" onClick={handleConnectGithub}>
+                  <Github className="w-4 h-4" /> Conectar con GitHub
+                </Button>
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-xs text-emerald-700 font-semibold">Conectado como @{githubConnection.username}</span>
+                  <button type="button" onClick={disconnectGithub} className="text-[11px] text-neutral-500 hover:text-red-600">Desconectar</button>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  {[['none', 'No utilizar'], ['existing', 'Usar existente'], ['create', 'Crear nuevo']].map(([value, label]) => (
+                    <button key={value} type="button" onClick={() => setGithubMode(value)} className={'p-2.5 rounded-xl border text-xs font-semibold transition-colors ' + (githubMode === value ? 'border-[#C8102E] bg-red-50 text-[#C8102E]' : 'border-neutral-200 text-neutral-600 hover:bg-neutral-50')}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                {githubLoading && <p className="text-xs text-neutral-500 mt-3 flex items-center gap-2"><RefreshCw className="w-3.5 h-3.5 animate-spin" /> Consultando GitHub...</p>}
+                {githubError && <p className="text-xs text-red-600 mt-3">{githubError}</p>}
+                {githubMode === 'existing' && !githubLoading && (
+                  <select value={selectedGithubRepo} onChange={(e) => setSelectedGithubRepo(e.target.value)} className="w-full mt-3 p-3 text-xs bg-neutral-50 rounded-xl border border-neutral-200">
+                    <option value="">Selecciona un repositorio existente</option>
+                    {githubRepos.map((repo) => <option key={repo.id} value={repo.id}>{repo.full_name}{repo.private ? ' (privado)' : ''}</option>)}
+                  </select>
+                )}
+                {githubMode === 'create' && (
+                  <div className="mt-3 space-y-3">
+                    <FloatingInput
+                      label="Nombre del repositorio"
+                      value={githubName}
+                      onChange={(e) => setGithubName(e.target.value.replace(/\s+/g, '-'))}
+                      placeholder="mi-proyecto-integrador"
+                      required
+                    />
+                    <FloatingInput label="Descripcion del repositorio" value={githubDescription} onChange={(e) => setGithubDescription(e.target.value)} />
+                    <select value={githubOrganization} onChange={(e) => setGithubOrganization(e.target.value)} className="w-full p-3 text-xs bg-neutral-50 rounded-xl border border-neutral-200">
+                      <option value="">Cuenta personal</option>
+                      {githubOrganizations.map((organization) => <option key={organization.id} value={organization.login}>{organization.login}</option>)}
+                    </select>
+                    <label className="flex items-center gap-2 text-xs text-neutral-600 cursor-pointer"><input type="checkbox" checked={githubPrivate} onChange={(e) => setGithubPrivate(e.target.checked)} /> Repositorio privado</label>
+                  </div>
+                )}
+              </>
+            )}
             <label className="flex items-center gap-2 text-xs text-neutral-600 mt-2 cursor-pointer">
               <input
                 type="checkbox"

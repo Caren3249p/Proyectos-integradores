@@ -16,7 +16,7 @@ import { Button, Badge } from '../components/UIComponents';
 import { ModalCrearProyecto } from '../components/ModalCrearProyecto';
 
 export const DashboardEstudiante = () => {
-  const { user, currentProject, currentProjectIssues, setCurrentView, setSelectedTab, addProjectTask, updateTaskState, showToast } = useApp();
+  const { user, userProjects, currentProject, currentProjectIssues, setSelectedProjectId, setCurrentView, setSelectedTab, addProjectTask, updateTaskState } = useApp();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [showTaskInput, setShowTaskInput] = useState(false);
@@ -79,6 +79,34 @@ export const DashboardEstudiante = () => {
           </div>
         </div>
       </div>
+
+      {userProjects.length > 1 && (
+        <section className="bg-white rounded-3xl border border-neutral-100 p-5 shadow-sm">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-base font-bold text-[#1A1A1A]">Mis proyectos</h2>
+              <p className="text-xs text-neutral-500">Selecciona un proyecto para ver su ficha y tareas.</p>
+            </div>
+            <span className="text-xs font-semibold text-neutral-500">{userProjects.length} registrados</span>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+            {userProjects.map((project) => (
+              <button
+                key={project.id}
+                type="button"
+                onClick={() => setSelectedProjectId(project.id)}
+                className={'text-left p-4 rounded-2xl border transition-all ' + (currentProject?.id === project.id ? 'border-[#C8102E] bg-red-50/60' : 'border-neutral-200 hover:border-neutral-300 hover:bg-neutral-50')}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <span className="text-sm font-bold text-[#1A1A1A] line-clamp-2">{project.titulo}</span>
+                  <Badge status={project.estado} dot={false} />
+                </div>
+                <p className="text-xs text-neutral-500 mt-2 line-clamp-2">{project.descripcion || 'Sin descripción'}</p>
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* Si el estudiante NO tiene ningun proyecto creado o asignado */}
       {!currentProject ? (

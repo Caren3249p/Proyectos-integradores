@@ -1,5 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 import { crearProyectoPlane } from './planeService.js';
+import { decryptSecret } from '../utils/encryption.js';
+import { createRepository, getOrganizations, getRepositories, getRepository, mapGithubError } from './githubService.js';
 
 const prisma = new PrismaClient();
 
@@ -42,6 +44,12 @@ const exigirPuedeModificar = (proyecto, usuario) => {
   }
 };
 
+const exigirPuedeAdministrarIntegrantes = (proyecto, usuario) => {
+  if (usuario?.rol !== 'admin' && proyecto.id_creador !== idUsuario(usuario)) {
+    throw errorConEstado('Solo el dueño del proyecto puede administrar sus integrantes', 403);
+  }
+};
+
 // Genera un identificador de Plane válido: máx 5 chars, solo mayúsculas y números
 const generarIdentifier = (titulo) => {
   const clean = titulo.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 4);
@@ -50,12 +58,20 @@ const generarIdentifier = (titulo) => {
 };
 
 export const crearProyecto = async (data, usuario) => {
-  const integrantes = [...new Set([idUsuario(usuario), ...(data.integrantes || [])])];
-  if (!integrantes.length) throw errorConEstado('El proyecto debe tener al menos un integrante');
+  const correosIntegrantes = [...new Set((data.integrantes || []).map((correo) => correo.trim().toLowerCase()))];
+  const integrantesCorreo = correosIntegrantes.filter((correo) => correo !== usuario.correo.toLowerCase());
 
   // 1. Crear en base de datos
-  const usuariosDb = await prisma.usuario.findMany({ where: { id_usuario: { in: integrantes } }, select: { id_usuario: true } });
-  if (usuariosDb.length !== integrantes.length) throw errorConEstado('Uno o más integrantes no existen', 404);
+  const usuariosDb = await prisma.usuario.findMany({
+    where: { correo: { in: integrantesCorreo } },
+    select: { id_usuario: true, correo: true }
+  });
+  if (usuariosDb.length !== integrantesCorreo.length) {
+    const encontrados = new Set(usuariosDb.map((item) => item.correo.toLowerCase()));
+    const noEncontrados = integrantesCorreo.filter((correo) => !encontrados.has(correo));
+    throw errorConEstado(`No existen usuarios registrados con estos correos: ${noEncontrados.join(', ')}`, 404);
+  }
+  const integrantes = [idUsuario(usuario), ...usuariosDb.map((item) => item.id_usuario)];
 
   const proyecto = await prisma.proyecto.create({
     data: {
@@ -65,7 +81,12 @@ export const crearProyecto = async (data, usuario) => {
       integrantes: { create: integrantes.map((id) => ({ id_usuario: id })) },
       versiones: { create: { numero: 'v1.0' } }
     },
-    include: { integrantes: true, versiones: true }
+    include: {
+      integrantes: {
+        include: { usuario: { select: { id_usuario: true, nombre: true, correo: true, rol: true } } }
+      },
+      versiones: true
+    }
   });
 
   // 2. Sincronizar con Plane (no bloquea si falla)
@@ -103,21 +124,24 @@ export const eliminarProyecto = async (id, usuario) => {
   await prisma.proyecto.delete({ where: { id_proyecto: id } });
 };
 
-export const agregarIntegrante = async (id, nuevoId, usuario) => {
+export const agregarIntegrante = async (id, correo, usuario) => {
   const proyecto = await exigirProyecto(id);
-  exigirPuedeModificar(proyecto, usuario);
+  exigirPuedeAdministrarIntegrantes(proyecto, usuario);
   if (proyecto.estado === 'publicado') throw errorConEstado('No se puede modificar un proyecto publicado');
-  const integrante = await prisma.usuario.findUnique({ where: { id_usuario: nuevoId }, select: { id_usuario: true, nombre: true, correo: true, rol: true } });
+  const integrante = await prisma.usuario.findUnique({ where: { correo: correo.trim().toLowerCase() }, select: { id_usuario: true, nombre: true, correo: true, rol: true } });
   if (!integrante) throw errorConEstado('El usuario no existe', 404);
-  const duplicado = proyecto.integrantes.some((item) => item.id_usuario === nuevoId);
+  const duplicado = proyecto.integrantes.some((item) => item.id_usuario === integrante.id_usuario);
   if (duplicado) throw errorConEstado('El usuario ya es integrante del proyecto');
-  return prisma.integranteProyecto.create({ data: { id_proyecto: id, id_usuario: nuevoId }, include: { usuario: true } });
+  return prisma.integranteProyecto.create({
+    data: { id_proyecto: id, id_usuario: integrante.id_usuario },
+    include: { usuario: { select: { id_usuario: true, nombre: true, correo: true, rol: true } } }
+  });
 };
 
 export const quitarIntegrante = async (id, usuarioId, usuario) => {
   const proyecto = await exigirProyecto(id);
-  exigirPuedeModificar(proyecto, usuario);
-  if (proyecto.integrantes.length <= 1) throw errorConEstado('El proyecto debe conservar al menos un integrante');
+  exigirPuedeAdministrarIntegrantes(proyecto, usuario);
+  if (usuarioId === proyecto.id_creador) throw errorConEstado('No se puede eliminar al dueño del proyecto');
   await prisma.integranteProyecto.delete({ where: { id_proyecto_id_usuario: { id_proyecto: id, id_usuario: usuarioId } } });
 };
 
@@ -140,6 +164,52 @@ export const desenlazarRepositorio = async (id, usuario) => {
   const proyecto = await exigirProyecto(id);
   exigirPuedeModificar(proyecto, usuario);
   await prisma.repositorio.deleteMany({ where: { id_proyecto: id } });
+};
+
+const exigirTokenGithub = async (usuario) => {
+  const cuenta = await prisma.usuario.findUnique({ where: { id_usuario: idUsuario(usuario) }, select: { github_access_token_encrypted: true } });
+  if (!cuenta?.github_access_token_encrypted) throw errorConEstado('Conecta tu cuenta de GitHub antes de continuar', 412);
+  try { return decryptSecret(cuenta.github_access_token_encrypted); } catch { throw errorConEstado('La conexión con GitHub no está disponible. Vuelve a conectarla', 401); }
+};
+
+const datosRepositorioGithub = (repository, origen) => ({
+  url: repository.html_url,
+  es_privado: Boolean(repository.private),
+  github_repo_id: String(repository.id),
+  github_owner: repository.owner?.login || null,
+  github_name: repository.name,
+  origen
+});
+
+export const listarRepositoriosGithub = async (usuario) => {
+  try { return await getRepositories(await exigirTokenGithub(usuario)); } catch (error) { throw mapGithubError(error); }
+};
+
+export const listarOrganizacionesGithub = async (usuario) => {
+  try { return await getOrganizations(await exigirTokenGithub(usuario)); } catch (error) { throw mapGithubError(error); }
+};
+
+export const enlazarRepositorioGithub = async (id, data, usuario) => {
+  const proyecto = await exigirProyecto(id);
+  exigirPuedeModificar(proyecto, usuario);
+  if (proyecto.repositorio) throw errorConEstado('Este proyecto ya tiene un repositorio enlazado', 409);
+  const token = await exigirTokenGithub(usuario);
+  try {
+    const repository = await getRepository(token, data.owner, data.repo);
+    const existente = await prisma.repositorio.findFirst({ where: { github_repo_id: String(repository.id) } });
+    if (existente) throw errorConEstado('Este repositorio ya está enlazado a otro proyecto', 409);
+    return prisma.repositorio.create({ data: { id_proyecto: id, ...datosRepositorioGithub(repository, 'github_existente') } });
+  } catch (error) { throw error.status ? error : mapGithubError(error); }
+};
+
+export const crearRepositorioGithub = async (id, data, usuario) => {
+  const proyecto = await exigirProyecto(id);
+  exigirPuedeModificar(proyecto, usuario);
+  if (proyecto.repositorio) throw errorConEstado('Este proyecto ya tiene un repositorio enlazado', 409);
+  try {
+    const repository = await createRepository(await exigirTokenGithub(usuario), { ...data, description: data.description || proyecto.descripcion || '' });
+    return prisma.repositorio.create({ data: { id_proyecto: id, ...datosRepositorioGithub(repository, 'github_creado') } });
+  } catch (error) { throw mapGithubError(error); }
 };
 
 // --- Funciones de asignación de docente asesor ---

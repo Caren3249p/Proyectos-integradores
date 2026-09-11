@@ -1,3 +1,24 @@
+## Integracion con GitHub
+
+La aplicación permite conectar una cuenta GitHub mediante OAuth y almacenar el token cifrado exclusivamente en el backend. El usuario puede crear un repositorio nuevo o enlazar uno existente; enlazar no modifica sus archivos, commits ni ramas.
+
+Variables requeridas en el backend:
+
+```env
+GITHUB_CLIENT_ID=
+GITHUB_CLIENT_SECRET=
+GITHUB_REDIRECT_URI=http://localhost:3000/api/auth/github/callback
+GITHUB_FRONTEND_REDIRECT_URI=http://localhost:3312
+GITHUB_TOKEN_ENCRYPTION_KEY=
+```
+
+Para generar la clave de cifrado en Node:
+
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+```
+
+El callback registrado en la OAuth App debe coincidir exactamente con `GITHUB_REDIRECT_URI`. El scope actual es `repo`, necesario para crear y consultar repositorios privados mediante una OAuth App de GitHub.
 # Arquitectura inicial
 
 ## Descripción

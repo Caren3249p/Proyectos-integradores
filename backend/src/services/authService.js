@@ -57,7 +57,22 @@ export const iniciarSesion = async (correo, contraseña) => {
       id_usuario: usuario.id_usuario,
       nombre: usuario.nombre,
       correo: usuario.correo,
-      rol: usuario.rol
+      rol: usuario.rol,
+      github_connected: Boolean(usuario.github_access_token_encrypted),
+      github_username: usuario.github_username
     }
   };
 };
+
+export const obtenerPerfil = async (idUsuario) => prisma.usuario.findUnique({
+  where: { id_usuario: idUsuario },
+  select: {
+    id_usuario: true,
+    nombre: true,
+    correo: true,
+    rol: true,
+    github_username: true,
+    github_user_id: true,
+    github_access_token_encrypted: true
+  }
+});
