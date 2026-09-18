@@ -26,6 +26,8 @@ export const subirArchivo = multer({
   limits: { fileSize: 100 * 1024 * 1024 }
 });
 
+export const subirArchivosEntrega = subirArchivo.array('archivos', 10);
+
 export const manejarErrorSubida = (error, _req, res, next) => {
   if (error instanceof multer.MulterError && error.code === 'LIMIT_FILE_SIZE') {
     return res.status(400).json({ error: 'El archivo supera el tamaño máximo de 100 MB' });

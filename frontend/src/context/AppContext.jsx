@@ -277,6 +277,7 @@ export const AppProvider = ({ children }) => {
           nombre: r.nombre,
           descripcion: r.descripcion || '',
           activa: r.activa,
+          tipo: r.tipo || 'DOCENTE',
           id_docente: r.id_docente,
           docente_nombre: r.docente?.nombre || user.nombre,
           criterios: normalizeRubricCriteria(r.criterios)
@@ -682,6 +683,7 @@ export const AppProvider = ({ children }) => {
       const res = await api.post('/rubricas', {
         nombre: newRubric.nombre,
         descripcion: newRubric.descripcion,
+        tipo: newRubric.tipo || 'DOCENTE',
         criterios: (newRubric.criterios || []).map(serializarCriterioRubrica)
       });
       if (!res?.rubrica) {
@@ -692,6 +694,7 @@ export const AppProvider = ({ children }) => {
         ...newRubric,
         id: res.rubrica.id_rubrica,
         id_docente: res.rubrica.id_docente,
+        tipo: res.rubrica.tipo || newRubric.tipo || 'DOCENTE',
         criterios: normalizeRubricCriteria(res.rubrica.criterios)
       };
     }

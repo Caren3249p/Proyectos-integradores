@@ -121,7 +121,8 @@ export const crearRubrica = async (data, usuario) => {
       data: {
         nombre: data.nombre,
         descripcion: data.descripcion,
-        id_docente: usuario.id_usuario
+        id_docente: usuario.id_usuario,
+        tipo: data.tipo || 'DOCENTE'
       }
     });
     await persistirNodos(tx, data.criterios, creada.id_rubrica);

@@ -13,6 +13,12 @@
   }
 }
 
+@layer components {
+  .field {
+    @apply w-full rounded-xl border border-neutral-200 bg-white px-4 py-3 text-sm text-[#201b16] outline-none transition-colors focus:border-[#c8102e] focus:ring-2 focus:ring-[#c8102e]/10;
+  }
+}
+
 /* Custom Antigravity glassmorphism & floating effects */
 .glass-panel {
   background: rgba(255, 255, 255, 0.85);

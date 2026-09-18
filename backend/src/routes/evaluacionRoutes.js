@@ -4,6 +4,7 @@ import {
   actualizar,
   cerrar,
   crear,
+  crearParaEntrega,
   listar,
   obtener,
   reabrir
@@ -13,6 +14,7 @@ const router = express.Router();
 router.use(verificarToken);
 
 router.post('/proyectos/:id/evaluaciones', crear);
+router.post('/entregas/:idEntrega/evaluacion-docente', crearParaEntrega);
 router.get('/evaluaciones/:id', obtener);
 router.put('/evaluaciones/:id', actualizar);
 router.patch('/evaluaciones/:id/cerrar', cerrar);

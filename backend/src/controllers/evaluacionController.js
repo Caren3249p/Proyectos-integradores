@@ -7,6 +7,9 @@ import {
   reabrirEvaluacion
 } from '../services/evaluacionService.js';
 import { evaluacionSchema } from '../utils/validators.js';
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
 
 const responderError = (res, error) => {
   if (error.name === 'ZodError') {
@@ -84,4 +87,15 @@ export const listar = async (req, res) => {
   } catch (error) {
     responderError(res, error);
   }
+};
+
+export const crearParaEntrega = async (req, res) => {
+  try {
+    const idEntrega = Number.parseInt(req.params.idEntrega, 10);
+    const entrega = await prisma.entrega.findUnique({ where: { id_entrega: idEntrega }, include: { actividad_proyecto: { include: { actividad: true } } } });
+    if (!entrega?.actividad_proyecto) return res.status(404).json({ error: 'Entrega de actividad no encontrada' });
+    const data = evaluacionSchema.omit({ id_rubrica: true }).parse(req.body);
+    const evaluacion = await crearEvaluacion(entrega.id_proyecto, { ...data, id_entrega: idEntrega, id_rubrica: entrega.actividad_proyecto.actividad.id_rubrica_docente }, req.usuario);
+    res.status(201).json({ message: 'Evaluación de entrega guardada', evaluacion });
+  } catch (error) { responderError(res, error); }
 };

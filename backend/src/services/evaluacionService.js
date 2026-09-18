@@ -111,9 +111,46 @@ const validarCalificacionesHojas = (arbol, calificaciones) => {
   return { hojas, evaluacionesMap: construirMapaNotas(calificaciones, hojas) };
 };
 
+const calcularNotaSnapshot = (snapshot, calificaciones) => {
+  const nodos = snapshot.map((nodo) => ({ ...nodo, hijos: [] }));
+  const mapa = new Map(nodos.map((nodo) => [nodo.id_criterio, nodo]));
+  const raices = [];
+  nodos.forEach((nodo) => {
+    const padre = nodo.id_padre ? mapa.get(nodo.id_padre) : null;
+    if (padre) padre.hijos.push(nodo);
+    else raices.push(nodo);
+  });
+  const notas = new Map(calificaciones.map((item) => [item.id_criterio, Number(item.nota ?? 0)]));
+  const visitar = (nodo) => {
+    if (nodo.es_hoja || !nodo.hijos.length) return nodo.seleccionado ? { nota: notas.get(nodo.id_criterio) ?? 0, peso: Number(nodo.peso) } : null;
+    const hijos = nodo.hijos.map(visitar).filter(Boolean);
+    if (!hijos.length) return null;
+    const pesoTotal = hijos.reduce((total, hijo) => total + hijo.peso, 0);
+    return { nota: hijos.reduce((total, hijo) => total + hijo.nota * (hijo.peso / (pesoTotal || 1)), 0), peso: Number(nodo.peso) };
+  };
+  const resultados = raices.map(visitar).filter(Boolean);
+  const pesoTotal = resultados.reduce((total, resultado) => total + resultado.peso, 0);
+  return resultados.reduce((total, resultado) => total + resultado.nota * (resultado.peso / (pesoTotal || 1)), 0);
+};
+
+const validarCalificacionesSnapshot = (snapshot, calificaciones) => {
+  const hojas = snapshot.filter((nodo) => nodo.seleccionado);
+  const ids = new Set(hojas.map((nodo) => nodo.id_criterio));
+  const recibidos = new Set(calificaciones.map((item) => item.id_criterio));
+  if (calificaciones.some((item) => !ids.has(item.id_criterio))) throw errorConEstado('La calificación contiene un criterio no seleccionado para este entregable', 400);
+  if (hojas.some((hoja) => !recibidos.has(hoja.id_criterio))) throw errorConEstado('Debe calificar todas las hojas seleccionadas para este entregable', 400);
+};
+
 export const crearEvaluacion = async (idProyecto, data, usuario) => {
   exigirDocente(usuario);
   await exigirProyecto(idProyecto);
+
+  let snapshot = null;
+  if (data.id_entrega) {
+    const entrega = await prisma.entrega.findUnique({ where: { id_entrega: data.id_entrega }, include: { actividad_proyecto: { include: { actividad: true } } } });
+    if (!entrega || entrega.id_proyecto !== idProyecto) throw errorConEstado('La entrega no pertenece a este proyecto', 400);
+    snapshot = entrega.actividad_proyecto?.actividad?.criterios_snapshot;
+  }
 
   const rubrica = await prisma.rubrica.findUnique({
     where: { id_rubrica: data.id_rubrica },
@@ -126,26 +163,40 @@ export const crearEvaluacion = async (idProyecto, data, usuario) => {
   if (!rubrica.criterios.length) throw errorConEstado('La rúbrica no contiene criterios de evaluación', 400);
 
   const arbol = construirArbolRubrica(rubrica.criterios);
-  const { evaluacionesMap } = validarCalificacionesHojas(arbol, data.calificaciones);
-  const notaFinalRedondeada = calcularNotaFinal({ criterios: arbol }, evaluacionesMap);
+  let notaFinalRedondeada;
+  let evaluacionesMap;
+  if (snapshot) {
+    validarCalificacionesSnapshot(snapshot, data.calificaciones);
+    notaFinalRedondeada = Math.round(calcularNotaSnapshot(snapshot, data.calificaciones) * 100) / 100;
+    evaluacionesMap = construirMapaNotas(data.calificaciones, obtenerHojasEvaluables(arbol));
+  } else {
+    ({ evaluacionesMap } = validarCalificacionesHojas(arbol, data.calificaciones));
+    notaFinalRedondeada = calcularNotaFinal({ criterios: arbol }, evaluacionesMap);
+  }
 
-  return prisma.evaluacion.create({
-    data: {
-      id_proyecto: idProyecto,
-      id_rubrica: data.id_rubrica,
-      id_docente: usuario.id_usuario,
-      nota_final: notaFinalRedondeada,
-      retroalimentacion: data.retroalimentacion,
-      estado: 'borrador',
-      calificaciones: {
-        create: data.calificaciones.map((item) => ({
-          id_criterio: item.id_criterio,
-          nota: evaluacionesMap.get(item.id_criterio)
-        }))
-      }
-    },
-    include: incluirEvaluacion
+  const evaluacion = await prisma.$transaction(async (tx) => {
+    const creada = await tx.evaluacion.create({
+      data: {
+        id_proyecto: idProyecto,
+        id_entrega: data.id_entrega,
+        id_rubrica: data.id_rubrica,
+        id_docente: usuario.id_usuario,
+        nota_final: notaFinalRedondeada,
+        retroalimentacion: data.retroalimentacion,
+        estado: 'borrador',
+        calificaciones: {
+          create: data.calificaciones.map((item) => ({
+            id_criterio: item.id_criterio,
+            nota: evaluacionesMap.get(item.id_criterio)
+          }))
+        }
+      },
+      include: incluirEvaluacion
+    });
+    if (data.id_entrega) await tx.entrega.update({ where: { id_entrega: data.id_entrega }, data: { nota_base: notaFinalRedondeada } });
+    return creada;
   });
+  return evaluacion;
 };
 
 export const obtenerEvaluacion = async (idEvaluacion, usuario) => {
@@ -229,7 +280,7 @@ export const actualizarEvaluacion = async (idEvaluacion, data, usuario) => {
   const { evaluacionesMap } = validarCalificacionesHojas(arbol, data.calificaciones);
   const notaFinalRedondeada = calcularNotaFinal({ criterios: arbol }, evaluacionesMap);
 
-  return prisma.$transaction(async (tx) => {
+  const evaluacionActualizada = await prisma.$transaction(async (tx) => {
     await tx.calificacionCriterio.deleteMany({
       where: { id_evaluacion: idEvaluacion }
     });
@@ -249,6 +300,11 @@ export const actualizarEvaluacion = async (idEvaluacion, data, usuario) => {
       include: incluirEvaluacion
     });
   });
+
+    if (evaluacionActualizada.id_entrega) {
+      await prisma.entrega.update({ where: { id_entrega: evaluacionActualizada.id_entrega }, data: { nota_base: notaFinalRedondeada } });
+    }
+  return evaluacionActualizada;
 };
 
 export const listarEvaluacionesProyecto = async (idProyecto, usuario) => {

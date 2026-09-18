@@ -13,45 +13,81 @@ enum TipoNodoRubrica {
   CRITERIO_EVALUABLE
 }
 
+enum TipoRubrica {
+  DOCENTE
+  COEVALUACION
+}
+
+enum TipoEntregable {
+  INDIVIDUAL
+  GRUPAL
+}
+
+enum EstadoEntregable {
+  BORRADOR
+  PUBLICADO
+  CERRADO
+}
+
+enum EstadoEntrega {
+  PENDIENTE
+  ENTREGADA
+}
+
+enum EstadoCoevaluacion {
+  PENDIENTE
+  ENVIADA
+}
+
 model Usuario {
-  id_usuario          Int                  @id @default(autoincrement())
-  nombre              String               @db.VarChar(100)
-  correo              String               @unique @db.VarChar(100)
-  contrasena_hash     String               @map("contraseña_hash") @db.VarChar(255)
-  rol                 String               @db.VarChar(20)
-  fecha_registro      DateTime             @default(now())
-  github_username     String?              @unique @db.VarChar(100)
-  github_user_id      String?              @unique @db.VarChar(100)
-  github_access_token_encrypted String?    @db.Text
-  github_connected_at DateTime?
-  plane_user_id       String?              @unique @db.VarChar(100)
-  evaluaciones        Evaluacion[]
-  integrantes         IntegranteProyecto[]
-  proyectos_creados   Proyecto[]           @relation("ProyectoCreador")
-  proyectos_asesorados Proyecto[]          @relation("ProyectoDocente")
-  rubricas            Rubrica[]
-  github_oauth_states GithubOAuthState[]
+  id_usuario                    Int                     @id @default(autoincrement())
+  nombre                        String                  @db.VarChar(100)
+  correo                        String                  @unique @db.VarChar(100)
+  contrasena_hash               String                  @map("contraseña_hash") @db.VarChar(255)
+  rol                           String                  @db.VarChar(20)
+  fecha_registro                DateTime                @default(now())
+  github_username               String?                 @unique @db.VarChar(100)
+  github_user_id                String?                 @unique @db.VarChar(100)
+  github_access_token_encrypted String?                 @db.Text
+  github_connected_at           DateTime?
+  plane_user_id                 String?                 @unique @db.VarChar(100)
+  evaluaciones                  Evaluacion[]
+  integrantes                   IntegranteProyecto[]
+  proyectos_creados             Proyecto[]              @relation("ProyectoCreador")
+  proyectos_asesorados          Proyecto[]              @relation("ProyectoDocente")
+  rubricas                      Rubrica[]
+  entregables_creados           Entregable[]            @relation("EntregableDocente")
+  actividades_creadas           ActividadEntregable[]   @relation("ActividadDocente")
+  entregas_individuales         Entrega[]               @relation("EntregaUsuario")
+  entregas_participante         EntregaParticipante[]
+  coevaluaciones_dadas          Coevaluacion[]          @relation("CoevaluacionEvaluador")
+  coevaluaciones_recibidas      Coevaluacion[]          @relation("CoevaluacionEvaluado")
+  resultados_coevaluacion       ResultadoCoevaluacion[]
+  github_oauth_states           GithubOAuthState[]
 
   @@map("usuario")
 }
 
 model Proyecto {
-  id_proyecto       Int                  @id @default(autoincrement())
-  titulo            String               @db.VarChar(150)
-  descripcion       String?
-  id_plane_proyecto String?              @unique @db.VarChar(100)
-  porcentaje_avance Int                  @default(0)
-  estado            String               @default("borrador") @db.VarChar(20)
-  id_creador        Int?
-  id_docente        Int?
-  campos_tecnicos   CampoTecnico?
-  integrantes       IntegranteProyecto[]
-  creador           Usuario?             @relation("ProyectoCreador", fields: [id_creador], references: [id_usuario])
-  docente           Usuario?             @relation("ProyectoDocente", fields: [id_docente], references: [id_usuario])
-  repositorio       Repositorio?
-  tareas            TareaBacklog[]
-  versiones         VersionProyecto[]
-  evaluaciones      Evaluacion[]
+  id_proyecto           Int                  @id @default(autoincrement())
+  titulo                String               @db.VarChar(150)
+  descripcion           String?
+  id_plane_proyecto     String?              @unique @db.VarChar(100)
+  porcentaje_avance     Int                  @default(0)
+  estado                String               @default("borrador") @db.VarChar(20)
+  id_creador            Int?
+  id_docente            Int?
+  campos_tecnicos       CampoTecnico?
+  integrantes           IntegranteProyecto[]
+  creador               Usuario?             @relation("ProyectoCreador", fields: [id_creador], references: [id_usuario])
+  docente               Usuario?             @relation("ProyectoDocente", fields: [id_docente], references: [id_usuario])
+  repositorio           Repositorio?
+  tareas                TareaBacklog[]
+  versiones             VersionProyecto[]
+  evaluaciones          Evaluacion[]
+  entregables           Entregable[]
+  entregas              Entrega[]
+  actividades_asignadas ActividadProyecto[]
 
   @@map("proyecto")
 }
@@ -136,50 +172,56 @@ model Repositorio {
 }
 
 model GithubOAuthState {
-  id         Int      @id @default(autoincrement())
-  state      String   @unique @db.VarChar(128)
+  id         Int       @id @default(autoincrement())
+  state      String    @unique @db.VarChar(128)
   id_usuario Int
   expires_at DateTime
   used_at    DateTime?
-  created_at DateTime @default(now())
-  usuario    Usuario  @relation(fields: [id_usuario], references: [id_usuario], onDelete: Cascade)
+  created_at DateTime  @default(now())
+  usuario    Usuario   @relation(fields: [id_usuario], references: [id_usuario], onDelete: Cascade)
 
   @@index([expires_at])
   @@map("github_oauth_state")
 }
 
 model Rubrica {
-  id_rubrica     Int               @id @default(autoincrement())
-  nombre         String            @db.VarChar(150)
-  descripcion    String?
-  activa         Boolean           @default(true)
-  id_docente     Int
-  fecha_creacion DateTime          @default(now())
-  criterios      CriterioRubrica[]
-  evaluaciones   Evaluacion[]
-  docente        Usuario           @relation(fields: [id_docente], references: [id_usuario])
+  id_rubrica                       Int                   @id @default(autoincrement())
+  nombre                           String                @db.VarChar(150)
+  descripcion                      String?
+  activa                           Boolean               @default(true)
+  tipo                             TipoRubrica           @default(DOCENTE)
+  id_docente                       Int
+  fecha_creacion                   DateTime              @default(now())
+  criterios                        CriterioRubrica[]
+  evaluaciones                     Evaluacion[]
+  entregables_docente              Entregable[]          @relation("EntregableRubricaDocente")
+  entregables_coevaluacion         Entregable[]          @relation("EntregableRubricaCoevaluacion")
+  actividades_rubrica_docente      ActividadEntregable[] @relation("ActividadRubricaDocente")
+  actividades_rubrica_coevaluacion ActividadEntregable[] @relation("ActividadRubricaCoevaluacion")
+  docente                          Usuario               @relation(fields: [id_docente], references: [id_usuario])
 
   @@map("rubrica")
 }
 
 model CriterioRubrica {
-  id_criterio         Int                    @id @default(autoincrement())
+  id_criterio         Int             @id @default(autoincrement())
   id_rubrica          Int
   id_padre            Int?
-  nombre              String                 @db.VarChar(150)
-  descripcion         String                 @db.Text
-  peso                Decimal                @db.Decimal(5, 2) // Ponderación relativa (0-100) dentro del grupo padre
-  tipo                TipoNodoRubrica        @default(CRITERIO_EVALUABLE)
-  es_hoja             Boolean                @default(true)
-  orden               Int                    @default(0)
-  fecha_creacion      DateTime               @default(now())
-  fecha_actualizacion DateTime               @default(now()) @updatedAt
+  nombre              String          @db.VarChar(150)
+  descripcion         String          @db.Text
+  peso                Decimal         @db.Decimal(5, 2) // Ponderación relativa (0-100) dentro del grupo padre
+  tipo                TipoNodoRubrica @default(CRITERIO_EVALUABLE)
+  es_hoja             Boolean         @default(true)
+  orden               Int             @default(0)
+  fecha_creacion      DateTime        @default(now())
+  fecha_actualizacion DateTime        @default(now()) @updatedAt
 
-  rubrica             Rubrica                @relation(fields: [id_rubrica], references: [id_rubrica], onDelete: Cascade)
-  padre               CriterioRubrica?       @relation("RubricaJerarquia", fields: [id_padre], references: [id_criterio], onDelete: Cascade)
-  hijos               CriterioRubrica[]      @relation("RubricaJerarquia")
-  niveles             NivelDesempeno[]
-  calificaciones      CalificacionCriterio[]
+  rubrica              Rubrica                @relation(fields: [id_rubrica], references: [id_rubrica], onDelete: Cascade)
+  padre                CriterioRubrica?       @relation("RubricaJerarquia", fields: [id_padre], references: [id_criterio], onDelete: Cascade)
+  hijos                CriterioRubrica[]      @relation("RubricaJerarquia")
+  niveles              NivelDesempeno[]
+  calificaciones       CalificacionCriterio[]
+  CoevaluacionCriterio CoevaluacionCriterio[]
 
   @@index([id_rubrica])
   @@index([id_padre])
@@ -187,12 +229,12 @@ model CriterioRubrica {
 }
 
 model NivelDesempeno {
-  id_nivel      Int               @id @default(autoincrement())
-  id_criterio   Int
-  nivel         Int               // 0, 1, 2, 3, 4, 5 (escala de desempeño)
-  puntos        Decimal           @db.Decimal(4, 2) // Valor puntual
-  descripcion   String            @db.Text // Descripción cualitativa
-  criterio      CriterioRubrica   @relation(fields: [id_criterio], references: [id_criterio], onDelete: Cascade)
+  id_nivel    Int             @id @default(autoincrement())
+  id_criterio Int
+  nivel       Int // 0, 1, 2, 3, 4, 5 (escala de desempeño)
+  puntos      Decimal         @db.Decimal(5, 2) // Valor puntual; admite 100 para coevaluación
+  descripcion String          @db.Text // Descripción cualitativa
+  criterio    CriterioRubrica @relation(fields: [id_criterio], references: [id_criterio], onDelete: Cascade)
 
   @@unique([id_criterio, nivel])
   @@map("nivel_desempeno")
@@ -201,6 +243,7 @@ model NivelDesempeno {
 model Evaluacion {
   id_evaluacion     Int                    @id @default(autoincrement())
   id_proyecto       Int
+  id_entrega        Int?                   @unique
   id_rubrica        Int
   id_docente        Int
   nota_final        Decimal                @db.Decimal(4, 2)
@@ -210,9 +253,168 @@ model Evaluacion {
   docente           Usuario                @relation(fields: [id_docente], references: [id_usuario])
   rubrica           Rubrica                @relation(fields: [id_rubrica], references: [id_rubrica])
   proyecto          Proyecto               @relation(fields: [id_proyecto], references: [id_proyecto], onDelete: Cascade)
+  entrega           Entrega?               @relation(fields: [id_entrega], references: [id_entrega], onDelete: SetNull)
   calificaciones    CalificacionCriterio[]
 
   @@map("evaluacion")
+}
+
+model Entregable {
+  id_entregable           Int              @id @default(autoincrement())
+  id_proyecto             Int
+  id_docente              Int
+  nombre                  String           @db.VarChar(150)
+  descripcion             String           @db.Text
+  fecha_limite            DateTime
+  tipo                    TipoEntregable
+  id_rubrica_docente      Int
+  id_rubrica_coevaluacion Int?
+  coevaluacion_activa     Boolean          @default(false)
+  estado                  EstadoEntregable @default(BORRADOR)
+  fecha_creacion          DateTime         @default(now())
+  fecha_actualizacion     DateTime         @updatedAt
+
+  proyecto             Proyecto  @relation(fields: [id_proyecto], references: [id_proyecto], onDelete: Cascade)
+  docente              Usuario   @relation("EntregableDocente", fields: [id_docente], references: [id_usuario])
+  rubrica_docente      Rubrica   @relation("EntregableRubricaDocente", fields: [id_rubrica_docente], references: [id_rubrica])
+  rubrica_coevaluacion Rubrica?  @relation("EntregableRubricaCoevaluacion", fields: [id_rubrica_coevaluacion], references: [id_rubrica])
+  entregas             Entrega[]
+
+  @@index([id_proyecto, estado])
+  @@map("entregable")
+}
+
+model ActividadEntregable {
+  id_actividad            Int              @id @default(autoincrement())
+  id_docente              Int
+  nombre                  String           @db.VarChar(150)
+  descripcion             String           @db.Text
+  fecha_limite            DateTime
+  tipo                    TipoEntregable
+  id_rubrica_docente      Int
+  id_rubrica_coevaluacion Int?
+  coevaluacion_activa     Boolean          @default(false)
+  criterios_snapshot      Json
+  estado                  EstadoEntregable @default(BORRADOR)
+  fecha_creacion          DateTime         @default(now())
+  fecha_actualizacion     DateTime         @updatedAt
+
+  docente              Usuario             @relation("ActividadDocente", fields: [id_docente], references: [id_usuario])
+  rubrica_docente      Rubrica             @relation("ActividadRubricaDocente", fields: [id_rubrica_docente], references: [id_rubrica])
+  rubrica_coevaluacion Rubrica?            @relation("ActividadRubricaCoevaluacion", fields: [id_rubrica_coevaluacion], references: [id_rubrica])
+  proyectos            ActividadProyecto[]
+
+  @@index([id_docente, estado])
+  @@map("actividad_entregable")
+}
+
+model ActividadProyecto {
+  id_actividad_proyecto Int                 @id @default(autoincrement())
+  id_actividad          Int
+  id_proyecto           Int
+  fecha_asignacion      DateTime            @default(now())
+  actividad             ActividadEntregable @relation(fields: [id_actividad], references: [id_actividad], onDelete: Cascade)
+  proyecto              Proyecto            @relation(fields: [id_proyecto], references: [id_proyecto], onDelete: Cascade)
+  entrega               Entrega?
+
+  @@unique([id_actividad, id_proyecto])
+  @@map("actividad_proyecto")
+}
+
+model Entrega {
+  id_entrega            Int           @id @default(autoincrement())
+  id_entregable         Int?
+  id_actividad_proyecto Int?          @unique
+  id_proyecto           Int
+  id_usuario            Int?
+  identificador         String        @unique @db.VarChar(80)
+  fecha_entrega         DateTime?
+  entregada_a_tiempo    Boolean?
+  estado                EstadoEntrega @default(PENDIENTE)
+  nota_base             Decimal?      @db.Decimal(5, 2)
+  nota_final            Decimal?      @db.Decimal(5, 2)
+
+  entregable              Entregable?             @relation(fields: [id_entregable], references: [id_entregable], onDelete: Cascade)
+  actividad_proyecto      ActividadProyecto?      @relation(fields: [id_actividad_proyecto], references: [id_actividad_proyecto], onDelete: Cascade)
+  proyecto                Proyecto                @relation(fields: [id_proyecto], references: [id_proyecto], onDelete: Cascade)
+  usuario                 Usuario?                @relation("EntregaUsuario", fields: [id_usuario], references: [id_usuario], onDelete: Cascade)
+  participantes           EntregaParticipante[]
+  archivos                ArchivoEntrega[]
+  evaluacion              Evaluacion?
+  resultados_coevaluacion ResultadoCoevaluacion[]
+  coevaluaciones          Coevaluacion[]
+
+  @@index([id_entregable, estado])
+  @@map("entrega")
+}
+
+model EntregaParticipante {
+  id_entrega Int
+  id_usuario Int
+  entrega    Entrega @relation(fields: [id_entrega], references: [id_entrega], onDelete: Cascade)
+  usuario    Usuario @relation(fields: [id_usuario], references: [id_usuario], onDelete: Cascade)
+
+  @@id([id_entrega, id_usuario])
+  @@map("entrega_participante")
+}
+
+model ArchivoEntrega {
+  id_archivo_entrega Int      @id @default(autoincrement())
+  id_entrega         Int
+  nombre             String   @db.VarChar(255)
+  nombre_fisico      String   @db.VarChar(255)
+  ruta               String   @db.VarChar(500)
+  extension          String   @db.VarChar(10)
+  tamano             Int
+  fecha_subida       DateTime @default(now())
+  entrega            Entrega  @relation(fields: [id_entrega], references: [id_entrega], onDelete: Cascade)
+
+  @@index([id_entrega])
+  @@map("archivo_entrega")
+}
+
+model Coevaluacion {
+  id_coevaluacion Int                    @id @default(autoincrement())
+  id_entrega      Int
+  id_evaluador    Int
+  id_evaluado     Int
+  estado          EstadoCoevaluacion     @default(PENDIENTE)
+  observacion     String?                @db.Text
+  fecha_envio     DateTime?
+  entrega         Entrega                @relation(fields: [id_entrega], references: [id_entrega], onDelete: Cascade)
+  evaluador       Usuario                @relation("CoevaluacionEvaluador", fields: [id_evaluador], references: [id_usuario], onDelete: Cascade)
+  evaluado        Usuario                @relation("CoevaluacionEvaluado", fields: [id_evaluado], references: [id_usuario], onDelete: Cascade)
+  criterios       CoevaluacionCriterio[]
+
+  @@unique([id_entrega, id_evaluador, id_evaluado])
+  @@index([id_entrega, estado])
+  @@map("coevaluacion")
+}
+
+model CoevaluacionCriterio {
+  id_coevaluacion   Int
+  id_criterio       Int
+  calificacion_base Int
+  coevaluacion      Coevaluacion    @relation(fields: [id_coevaluacion], references: [id_coevaluacion], onDelete: Cascade)
+  criterio          CriterioRubrica @relation(fields: [id_criterio], references: [id_criterio], onDelete: Cascade)
+
+  @@id([id_coevaluacion, id_criterio])
+  @@map("coevaluacion_criterio")
+}
+
+model ResultadoCoevaluacion {
+  id_resultado       Int      @id @default(autoincrement())
+  id_entrega         Int
+  id_usuario         Int
+  total_coevaluacion Decimal  @db.Decimal(5, 2)
+  nota_base          Decimal? @db.Decimal(5, 2)
+  nota_final         Decimal? @db.Decimal(5, 2)
+  actualizado_en     DateTime @updatedAt
+  entrega            Entrega  @relation(fields: [id_entrega], references: [id_entrega], onDelete: Cascade)
+  usuario            Usuario  @relation(fields: [id_usuario], references: [id_usuario], onDelete: Cascade)
+
+  @@unique([id_entrega, id_usuario])
+  @@map("resultado_coevaluacion")
 }
 
 model CalificacionCriterio {

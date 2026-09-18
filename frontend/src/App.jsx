@@ -8,6 +8,7 @@ import { DashboardAdmin } from './pages/DashboardAdmin';
 import { FichaProyecto } from './pages/FichaProyecto';
 import { GestionRubricas } from './pages/GestionRubricas';
 import { EvaluacionProyecto } from './pages/EvaluacionProyecto';
+import { Entregables } from './pages/Entregables';
 import { CheckCircle2, AlertCircle, Info } from 'lucide-react';
 
 export default function App() {
@@ -33,6 +34,8 @@ export default function App() {
         return <GestionRubricas />;
       case 'evaluacion_proyecto':
         return <EvaluacionProyecto />;
+      case 'entregables':
+        return <Entregables />;
       default:
         return user?.rol === 'admin' ? <DashboardAdmin /> : <DashboardEstudiante />;
     }

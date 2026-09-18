@@ -10,6 +10,7 @@ import {
   GraduationCap, 
   Layers,
   Radio
+  , ClipboardCheck
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 
@@ -24,12 +25,14 @@ export const Sidebar = () => {
     { id: 'ficha_proyecto', label: 'Ficha & Entregas', icon: Layers },
     { id: 'backlog_plane', label: 'Backlog / Kanban', icon: Kanban, badge: 'Plane' },
     { id: 'actas_seguimiento', label: 'Actas de Asesoria', icon: FileText },
+    { id: 'entregables', label: 'Entregables y Coevaluacion', icon: ClipboardCheck },
   ];
 
   const menuDocente = [
     { id: 'dashboard_docente', label: 'Panel Docente', icon: GraduationCap, badge: 'Cursos' },
     { id: 'gestion_rubricas', label: 'Gestion de Rubricas', icon: Sliders, badge: '100%' },
     { id: 'evaluacion_proyecto', label: 'Evaluar Proyectos', icon: Award },
+    { id: 'entregables', label: 'Entregables y Coevaluacion', icon: ClipboardCheck },
     { id: 'ficha_proyecto', label: 'Explorador Fichas', icon: Layers },
   ];
 

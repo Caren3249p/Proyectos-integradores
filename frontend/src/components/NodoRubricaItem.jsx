@@ -26,7 +26,9 @@ const NodoRubricaItem = ({
   expandidos,
   onToggleExpander,
   minimizados,
-  onToggleMinimizar
+  onToggleMinimizar,
+  maxPuntos = 5,
+  nivelesPuntos = null
 }) => {
   const [mostrarNiveles, setMostrarNiveles] = useState(true);
   const hijos = criterio.hijos || [];
@@ -241,42 +243,43 @@ const NodoRubricaItem = ({
               className="flex items-center gap-1 text-xs font-bold text-neutral-700 hover:text-[#C8102E] transition mb-2"
             >
               {mostrarNiveles ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-              Matriz de niveles de desempeño (0-5)
+              Matriz de niveles de desempeño (0-{maxPuntos})
             </button>
 
             {mostrarNiveles && (
               <div className="space-y-2 bg-white p-3 rounded-lg border border-neutral-200">
-                {[0, 1, 2, 3, 4, 5].map((nivelDesempeno) => {
-                  const nivelExistente = (criterio.niveles || []).find((n) => Number(n.nivel) === nivelDesempeno) || {
-                    nivel: nivelDesempeno,
+                {(nivelesPuntos || [0, 1, 2, 3, 4, 5]).map((nivelDesempeno, indiceNivel) => {
+                  const nivelId = nivelesPuntos ? indiceNivel : nivelDesempeno;
+                  const nivelExistente = (criterio.niveles || []).find((n) => Number(n.nivel) === nivelId) || {
+                    nivel: nivelId,
                     puntos: nivelDesempeno,
                     descripcion: ''
                   };
                   return (
                     <div key={nivelDesempeno} className="grid grid-cols-12 gap-2 text-xs">
                       <div className="col-span-1 font-bold bg-neutral-100 rounded p-1 text-center">
-                        {nivelDesempeno}
+                        {nivelesPuntos ? indiceNivel : nivelDesempeno}
                       </div>
                       <input
                         type="number"
                         step="0.1"
                         min="0"
-                        max="5"
+                        max={maxPuntos}
                         placeholder="Puntos"
                         value={nivelExistente.puntos ?? ''}
                         onChange={(e) => {
                           const raw = e.target.value;
                           if (raw === '') {
-                            onCambiarNivel(criterio.id, nivelDesempeno, 'puntos', 0);
+                            onCambiarNivel(criterio.id, nivelId, 'puntos', 0);
                             return;
                           }
                           const puntos = Number(raw);
                           if (Number.isNaN(puntos)) return;
                           onCambiarNivel(
                             criterio.id,
-                            nivelDesempeno,
+                            nivelId,
                             'puntos',
-                            Math.min(5, Math.max(0, puntos))
+                            Math.min(maxPuntos, Math.max(0, puntos))
                           );
                         }}
                         className="col-span-2 px-2 py-1 border border-neutral-200 rounded"
@@ -285,7 +288,7 @@ const NodoRubricaItem = ({
                         type="text"
                         placeholder="Descripción cualitativa"
                         value={nivelExistente.descripcion || ''}
-                        onChange={(e) => onCambiarNivel(criterio.id, nivelDesempeno, 'descripcion', e.target.value)}
+                        onChange={(e) => onCambiarNivel(criterio.id, nivelId, 'descripcion', e.target.value)}
                         className="col-span-9 px-2 py-1 border border-neutral-200 rounded"
                       />
                     </div>
@@ -333,6 +336,8 @@ const NodoRubricaItem = ({
               onToggleExpander={onToggleExpander}
               minimizados={minimizados}
               onToggleMinimizar={onToggleMinimizar}
+              maxPuntos={maxPuntos}
+              nivelesPuntos={nivelesPuntos}
             />
           ))}
         </div>

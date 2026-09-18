@@ -20,6 +20,15 @@ const NIVEL_DEFAULT = [0, 1, 2, 3, 4, 5].map((nivel) => ({
   descripcion: ''
 }));
 
+const NOMBRES_COEVALUACION = ['Compromiso', 'Enfoque', 'Apertura', 'Respeto', 'Valor'];
+const crearNivelesCoevaluacion = () => [0, 20, 40, 60, 80, 100].map((puntos, nivel) => ({ nivel, puntos, descripcion: '' }));
+const crearCriteriosCoevaluacion = () => NOMBRES_COEVALUACION.map((nombre, orden) => ({
+  ...crearNodo({ tipo: 'CRITERIO_EVALUABLE', esHoja: true, peso: 20 }),
+  nombre,
+  orden,
+  niveles: crearNivelesCoevaluacion()
+}));
+
 const crearNodo = ({ parentId = null, tipo, esHoja, peso = 0 }) => ({
   id: `tmp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
   nombre: '',
@@ -32,7 +41,7 @@ const crearNodo = ({ parentId = null, tipo, esHoja, peso = 0 }) => ({
   hijos: []
 });
 
-const validarEstructuraJerarquica = (criterios = []) => {
+const validarEstructuraJerarquica = (criterios = [], tipo = 'DOCENTE') => {
   const errores = [];
 
   const validarGrupo = (hermanos, etiqueta) => {
@@ -65,8 +74,9 @@ const validarEstructuraJerarquica = (criterios = []) => {
     if (esHoja) {
       (nodo.niveles || []).forEach((nivel) => {
         const puntos = Number(nivel.puntos);
-        if (Number.isNaN(puntos) || puntos < 0 || puntos > 5) {
-          errores.push(`"${rutaStr}": los puntos del nivel ${nivel.nivel} deben estar entre 0.0 y 5.0.`);
+        const maxPuntos = tipo === 'COEVALUACION' ? 100 : 5;
+        if (Number.isNaN(puntos) || puntos < 0 || puntos > maxPuntos) {
+          errores.push(`"${rutaStr}": los puntos deben estar entre 0 y ${maxPuntos}.`);
         }
       });
     }
@@ -74,6 +84,18 @@ const validarEstructuraJerarquica = (criterios = []) => {
 
   validarGrupo(criterios, 'Los cortes académicos (raíz)');
   criterios.forEach((raiz) => validarNodo(raiz, []));
+
+  if (tipo === 'COEVALUACION') {
+    if (criterios.length !== 5 || criterios.some((criterio) => !criterio.esHoja || Number(criterio.peso) !== 20)) {
+      errores.push('La rúbrica de coevaluación debe tener cinco criterios hoja con peso de 20%.');
+    }
+    criterios.forEach((criterio) => {
+      const puntos = (criterio.niveles || []).map((nivel) => Number(nivel.puntos));
+      if (puntos.length !== 6 || ![0, 20, 40, 60, 80, 100].every((valor) => puntos.includes(valor))) {
+        errores.push(`"${criterio.nombre || 'Criterio'}": debe incluir los valores 0, 20, 40, 60, 80 y 100.`);
+      }
+    });
+  }
 
   return { esValido: errores.length === 0, errores };
 };
@@ -110,15 +132,29 @@ export const GestionRubricas = () => {
 
   const [nombre, setNombre] = useState('');
   const [descripcion, setDescripcion] = useState('');
-  const [criterios, setCriterios] = useState([
-    crearNodo({ tipo: 'CORTE_ACADEMICO', esHoja: true, peso: 100 })
-  ]);
+  const [tipo, setTipo] = useState('DOCENTE');
+  const [seccion, setSeccion] = useState('DOCENTE');
+  const [criterios, setCriterios] = useState([crearNodo({ tipo: 'CORTE_ACADEMICO', esHoja: true, peso: 100 })]);
   const [expandidos, setExpandidos] = useState(new Set());
   const [minimizados, setMinimizados] = useState(new Set());
 
-  const validacion = validarEstructuraJerarquica(criterios);
+  const validacion = validarEstructuraJerarquica(criterios, tipo);
   const isValid = validacion.esValido;
   const sumaRaices = criterios.reduce((sum, c) => sum + (Number(c.peso) || 0), 0);
+
+  const cambiarTipo = (nuevoTipo) => {
+    setTipo(nuevoTipo);
+    setCriterios(nuevoTipo === 'COEVALUACION'
+      ? crearCriteriosCoevaluacion()
+      : [crearNodo({ tipo: 'CORTE_ACADEMICO', esHoja: true, peso: 100 })]);
+    setExpandidos(new Set());
+    setMinimizados(new Set());
+  };
+
+  const seleccionarSeccion = (nuevaSeccion) => {
+    setSeccion(nuevaSeccion);
+    cambiarTipo(nuevaSeccion);
+  };
 
   const toggleExpanded = (id) => {
     const next = new Set(expandidos);
@@ -209,8 +245,9 @@ export const GestionRubricas = () => {
       actualizarNodo(prev, id, (nodo) => {
         const actuales = [...(nodo.niveles || [])];
         const idx = actuales.findIndex((n) => Number(n.nivel) === Number(nivel));
+        const maxPuntos = tipo === 'COEVALUACION' ? 100 : 5;
         const siguienteValor = campo === 'puntos'
-          ? Math.min(5, Math.max(0, Number.parseFloat(valor) || 0))
+          ? Math.min(maxPuntos, Math.max(0, Number.parseFloat(valor) || 0))
           : valor;
         if (idx === -1) {
           actuales.push({ nivel, puntos: campo === 'puntos' ? siguienteValor : nivel, descripcion: campo === 'descripcion' ? valor : '' });
@@ -236,6 +273,7 @@ export const GestionRubricas = () => {
     const ok = await addRubric({
       nombre,
       descripcion,
+      tipo,
       activa: true,
       id_docente: user?.id || 10,
       docente_nombre: user?.nombre || 'Dr. Carlos Mario Morales',
@@ -246,6 +284,8 @@ export const GestionRubricas = () => {
 
     setNombre('');
     setDescripcion('');
+    setTipo('DOCENTE');
+    setSeccion('DOCENTE');
     setCriterios([crearNodo({ tipo: 'CORTE_ACADEMICO', esHoja: true, peso: 100 })]);
     setExpandidos(new Set());
     setMinimizados(new Set());
@@ -259,8 +299,8 @@ export const GestionRubricas = () => {
             <Sliders className="w-4 h-4 text-[#C9A84C]" />
             <span className="text-xs font-bold text-[#C9A84C] uppercase tracking-wider">Módulo Docente</span>
           </div>
-          <h1 className="text-2xl font-extrabold text-[#1A1A1A]">Gestión de Rúbricas Jerárquicas Multinivel</h1>
-          <p className="text-xs text-neutral-500">Constructor árbol padre-hijo con validación automática de ponderaciones por nivel y matriz de desempeño.</p>
+          <h1 className="text-2xl font-extrabold text-[#1A1A1A]">Gestión de Rúbricas</h1>
+          <p className="text-xs text-neutral-500">Administra por separado las rúbricas docentes y las rúbricas de coevaluación.</p>
         </div>
 
         <div
@@ -282,15 +322,32 @@ export const GestionRubricas = () => {
         </div>
       </div>
 
+      <div className="flex gap-2 border-b border-neutral-200">
+        <button
+          type="button"
+          onClick={() => seleccionarSeccion('DOCENTE')}
+          className={`px-4 py-3 text-sm font-bold border-b-2 ${seccion === 'DOCENTE' ? 'border-[#C8102E] text-[#C8102E]' : 'border-transparent text-neutral-500'}`}
+        >
+          Rúbricas docentes
+        </button>
+        <button
+          type="button"
+          onClick={() => seleccionarSeccion('COEVALUACION')}
+          className={`px-4 py-3 text-sm font-bold border-b-2 ${seccion === 'COEVALUACION' ? 'border-[#C8102E] text-[#C8102E]' : 'border-transparent text-neutral-500'}`}
+        >
+          Rúbricas de coevaluación
+        </button>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="space-y-4">
-          <h3 className="font-bold text-sm text-[#1A1A1A]">Rúbricas Institucionales</h3>
-          {rubrics.length === 0 ? (
+          <h3 className="font-bold text-sm text-[#1A1A1A]">{seccion === 'COEVALUACION' ? 'Mis rúbricas de coevaluación' : 'Mis rúbricas docentes'}</h3>
+          {rubrics.filter((rub) => (rub.tipo || 'DOCENTE') === seccion).length === 0 ? (
             <div className="bg-white p-5 rounded-3xl border border-dashed border-neutral-200 text-sm text-neutral-500">
               Aún no hay rúbricas creadas.
             </div>
           ) : (
-            rubrics.map((rub) => (
+            rubrics.filter((rub) => (rub.tipo || 'DOCENTE') === seccion).map((rub) => (
               <div
                 key={rub.id}
                 className="bg-white p-5 rounded-3xl border border-neutral-100 shadow-sm space-y-3 hover:border-neutral-200 transition-all"
@@ -334,6 +391,16 @@ export const GestionRubricas = () => {
                 value={descripcion}
                 onChange={(e) => setDescripcion(e.target.value)}
               />
+              <div className="rounded-xl border border-[#C8102E]/20 bg-red-50 px-4 py-3">
+                <p className="text-xs font-bold text-[#C8102E]">
+                  {seccion === 'COEVALUACION' ? 'Nueva rúbrica de coevaluación anónima' : 'Nueva rúbrica de evaluación docente'}
+                </p>
+                <p className="text-[11px] text-neutral-500 mt-1">
+                  {tipo === 'COEVALUACION'
+                    ? 'Se crearán los cinco criterios fijos con escala de 0 a 100 y peso de 20%.'
+                    : 'Usa la escala docente existente de 0 a 5.'}
+                </p>
+              </div>
             </div>
 
             <div className="space-y-3 pt-4 border-t border-neutral-100">
@@ -391,6 +458,8 @@ export const GestionRubricas = () => {
                     onEliminar={eliminarCriterio}
                     onCambiar={cambiarCriterio}
                     onCambiarNivel={cambiarNivel}
+                    maxPuntos={tipo === 'COEVALUACION' ? 100 : 5}
+                    nivelesPuntos={tipo === 'COEVALUACION' ? [0, 20, 40, 60, 80, 100] : null}
                     onReordenar={(id, direccion) => setCriterios((prev) => reordenarNodos(prev, id, direccion))}
                     expandidos={expandidos}
                     onToggleExpander={toggleExpanded}

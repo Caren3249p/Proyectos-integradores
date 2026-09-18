@@ -74,7 +74,7 @@ export const githubRepositoryCreateSchema = z.object({
 
 const nivelDesempenoInputSchema = z.object({
   nivel: z.coerce.number().int().min(0, 'El nivel mínimo es 0').max(5, 'El nivel máximo es 5'),
-  puntos: z.coerce.number().min(0, 'Los puntos no pueden ser negativos').max(5, 'Los puntos no pueden superar 5'),
+  puntos: z.coerce.number().min(0, 'Los puntos no pueden ser negativos').max(100, 'Los puntos no pueden superar 100'),
   descripcion: z.string().trim().optional().default('')
 });
 
@@ -193,6 +193,7 @@ export const obtenerHojasEvaluables = (criterios = []) => {
 export const rubricaSchema = z.object({
   nombre: z.string().trim().min(1, 'El nombre de la rúbrica es obligatorio'),
   descripcion: z.string().trim().optional(),
+  tipo: z.enum(['DOCENTE', 'COEVALUACION']).optional().default('DOCENTE'),
   criterios: z.array(criterioNodoSchema).min(1, 'Debe incluir al menos un criterio')
 }).superRefine((data, context) => {
   const resultado = validarJerarquiaRubrica(data.criterios);
@@ -200,6 +201,20 @@ export const rubricaSchema = z.object({
     resultado.errores.forEach((message) => {
       context.addIssue({ code: z.ZodIssueCode.custom, path: ['criterios'], message });
     });
+  }
+  const hojas = obtenerHojasEvaluables(data.criterios);
+  if (data.tipo === 'COEVALUACION') {
+    if (hojas.length !== 5 || hojas.some((hoja) => Number(hoja.peso) !== 20)) {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ['criterios'], message: 'La rúbrica de coevaluación debe tener cinco criterios con peso de 20%' });
+    }
+    hojas.forEach((hoja) => {
+      const niveles = hoja.niveles.map((nivel) => Number(nivel.puntos));
+      if (niveles.length !== 6 || ![0, 20, 40, 60, 80, 100].every((valor) => niveles.includes(valor))) {
+        context.addIssue({ code: z.ZodIssueCode.custom, path: ['criterios'], message: 'Cada criterio de coevaluación debe tener niveles 0, 20, 40, 60, 80 y 100' });
+      }
+    });
+  } else if (hojas.some((hoja) => hoja.niveles.some((nivel) => Number(nivel.puntos) > 5))) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ['criterios'], message: 'Las rúbricas docentes usan una escala máxima de 5' });
   }
 });
 
@@ -213,6 +228,67 @@ const calificacionItemSchema = z.object({
 
 export const evaluacionSchema = z.object({
   id_rubrica: idSchema,
+  id_entrega: idSchema.optional(),
   calificaciones: z.array(calificacionItemSchema).min(1, 'Debe calificar al menos un criterio hoja'),
   retroalimentacion: z.string().trim().min(20, 'La retroalimentación debe tener al menos 20 caracteres')
+});
+
+const entregableBaseSchema = z.object({
+  nombre: z.string().trim().min(1, 'El nombre del entregable es obligatorio').max(150),
+  descripcion: z.string().trim().min(1, 'La descripción del entregable es obligatoria'),
+  fecha_limite: z.coerce.date(),
+  tipo: z.enum(['INDIVIDUAL', 'GRUPAL']),
+  id_rubrica_docente: idSchema,
+  id_rubrica_coevaluacion: idSchema.nullable().optional(),
+  coevaluacion_activa: z.boolean().optional().default(false)
+});
+
+export const entregableSchema = entregableBaseSchema.superRefine((data, context) => {
+  if (data.coevaluacion_activa && data.tipo !== 'GRUPAL') {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ['coevaluacion_activa'], message: 'La coevaluación solo aplica a entregables grupales' });
+  }
+  if (data.coevaluacion_activa && !data.id_rubrica_coevaluacion) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ['id_rubrica_coevaluacion'], message: 'Debe seleccionar una rúbrica de coevaluación' });
+  }
+});
+
+export const actualizarEntregableSchema = entregableBaseSchema.partial().refine(
+  (data) => Object.keys(data).length > 0,
+  'Debe enviar al menos un campo para actualizar'
+);
+
+const escalaCoevaluacion = z.union([
+  z.literal(0), z.literal(20), z.literal(40), z.literal(60), z.literal(80), z.literal(100)
+]);
+
+export const coevaluacionSchema = z.object({
+  calificaciones: z.array(z.object({
+    id_criterio: idSchema,
+    calificacion_base: z.coerce.number().pipe(escalaCoevaluacion)
+  })).length(5, 'Debe calificar los cinco criterios de coevaluación'),
+  observacion: z.string().trim().max(2000).optional().default('')
+});
+
+export const actividadEntregableSchema = z.object({
+  nombre: z.string().trim().min(1).max(150),
+  descripcion: z.string().trim().min(1),
+  fecha_limite: z.coerce.date(),
+  tipo: z.enum(['INDIVIDUAL', 'GRUPAL']),
+  id_rubrica_docente: idSchema,
+  id_rubrica_coevaluacion: idSchema.nullable().optional(),
+  coevaluacion_activa: z.boolean().default(false),
+  criterios: z.array(idSchema).min(1, 'Seleccione al menos un nodo de la rúbrica'),
+  proyectos: z.array(idSchema).min(1, 'Seleccione al menos un proyecto')
+}).superRefine((data, context) => {
+  if (data.tipo !== 'GRUPAL' && data.coevaluacion_activa) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ['coevaluacion_activa'], message: 'La coevaluación solo aplica a actividades grupales' });
+  }
+  if (data.coevaluacion_activa && !data.id_rubrica_coevaluacion) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ['id_rubrica_coevaluacion'], message: 'Seleccione la rúbrica de coevaluación' });
+  }
+});
+
+export const evaluacionEntregaSchema = z.object({
+  calificaciones: z.array(calificacionItemSchema).min(1),
+  retroalimentacion: z.string().trim().min(20)
 });
