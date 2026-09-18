@@ -1,30 +1,55 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-
-import 'package:mobile/main.dart';
+import 'package:mobile/models/proyecto.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  test('Proyecto.fromJson lee la respuesta del backend', () {
+    final json = <String, dynamic>{
+      'id_proyecto': 7,
+      'titulo': 'Plataforma de Proyectos Integradores',
+      'descripcion': 'Gestión académica con integración a Plane y GitHub',
+      'estado': 'en_revision',
+      'porcentaje_avance': 45,
+      'id_plane_proyecto': 'abc-123',
+      'creador': {
+        'id_usuario': 1,
+        'nombre': 'Caren',
+        'correo': 'caren@upb.edu.co',
+        'rol': 'estudiante',
+      },
+      'docente': null,
+      'integrantes': [
+        {
+          'id_usuario': 1,
+          'usuario': {
+            'id_usuario': 1,
+            'nombre': 'Caren',
+            'correo': 'caren@upb.edu.co',
+            'rol': 'estudiante',
+          }
+        }
+      ],
+      'campos_tecnicos': {
+        'lenguaje_principal': 'Dart',
+        'frameworks': 'Flutter',
+        'base_datos': 'PostgreSQL',
+        'es_movil': true,
+        'entorno_despliegue': 'Android',
+      },
+      'repositorio': {'url': 'https://github.com/Caren3249p/Proyectos-integradores'},
+      // nota_final llega como string: en Postgres es DECIMAL(4,2)
+      'evaluaciones': [
+        {'nota_final': '4.20', 'retroalimentacion': 'Buen avance'}
+      ],
+    };
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+    final proyecto = Proyecto.fromJson(json);
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
-
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    expect(proyecto.idProyecto, 7);
+    expect(proyecto.estado, 'en_revision');
+    expect(proyecto.porcentajeAvance, 45);
+    expect(proyecto.integrantes.single.nombre, 'Caren');
+    expect(proyecto.camposTecnicos!.esMovil, isTrue);
+    expect(proyecto.tieneRepositorio, isTrue);
+    expect(proyecto.notaFinal, 4.2);
   });
 }

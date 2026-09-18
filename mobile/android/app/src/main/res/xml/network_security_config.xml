@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android 9+ bloquea por defecto el tráfico HTTP sin cifrar y el backend de
+  desarrollo corre en http://. Esta configuración permite cleartext para
+  poder probar contra el servidor local (emulador 10.0.2.2 o la IP LAN del
+  PC, que cambia de red en red).
+
+  IMPORTANTE: antes de publicar la app, servir el backend por HTTPS y
+  eliminar este archivo junto con el atributo android:networkSecurityConfig
+  del AndroidManifest.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>
