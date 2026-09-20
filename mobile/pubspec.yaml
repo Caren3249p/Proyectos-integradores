@@ -14,6 +14,7 @@ dependencies:
   http: ^1.6.0                 # llamadas REST al backend Express
   provider: ^6.1.5             # estado de sesión compartido
   shared_preferences: ^2.5.3   # persistencia local del JWT
+  file_picker: ^13.0.0          # elegir archivos para subir a una versión
 
 dev_dependencies:
   flutter_test:

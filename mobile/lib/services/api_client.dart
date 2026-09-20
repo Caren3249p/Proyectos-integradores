@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:http/http.dart' as http;
 
@@ -68,6 +69,68 @@ class ApiClient {
 
   Future<dynamic> delete(String endpoint) =>
       _enviar(() => _cliente.delete(_uri(endpoint), headers: _headers()));
+
+  /// Subida de archivo (multipart/form-data). [rutaArchivo] es la ruta
+  /// local elegida con file_picker; [campos] son los demás campos del
+  /// formulario (ej. "tipo").
+  Future<dynamic> subirArchivo(
+    String endpoint,
+    String rutaArchivo, {
+    Map<String, String> campos = const {},
+  }) async {
+    final peticion = http.MultipartRequest('POST', _uri(endpoint));
+    peticion.headers.addAll(_headers());
+    peticion.fields.addAll(campos);
+    peticion.files
+        .add(await http.MultipartFile.fromPath('archivo', rutaArchivo));
+
+    late http.StreamedResponse enviada;
+    try {
+      enviada = await peticion.send().timeout(const Duration(seconds: 60));
+    } on TimeoutException {
+      throw ApiException(0, 'La subida tardó demasiado. Intenta de nuevo.');
+    } catch (_) {
+      throw ApiException(0, 'No se pudo conectar con el servidor.');
+    }
+
+    final respuesta = await http.Response.fromStream(enviada);
+    dynamic datos;
+    if (respuesta.bodyBytes.isNotEmpty) {
+      try {
+        datos = jsonDecode(utf8.decode(respuesta.bodyBytes));
+      } catch (_) {
+        datos = null;
+      }
+    }
+    if (respuesta.statusCode >= 200 && respuesta.statusCode < 300) {
+      return datos;
+    }
+    final mensaje = datos is Map<String, dynamic>
+        ? (datos['error'] ?? 'Error ${respuesta.statusCode}').toString()
+        : 'Error ${respuesta.statusCode}';
+    throw ApiException(respuesta.statusCode, mensaje);
+  }
+
+  /// Descarga un archivo del backend y lo guarda en el almacenamiento
+  /// temporal del dispositivo. Devuelve el archivo local ya escrito.
+  Future<File> descargarArchivo(
+      String endpoint, String nombreSugerido) async {
+    late http.Response respuesta;
+    try {
+      respuesta = await _cliente
+          .get(_uri(endpoint), headers: _headers())
+          .timeout(const Duration(seconds: 30));
+    } catch (_) {
+      throw ApiException(0, 'No se pudo descargar el archivo.');
+    }
+    if (respuesta.statusCode != 200) {
+      throw ApiException(
+          respuesta.statusCode, 'No se pudo descargar el archivo.');
+    }
+    final archivo = File('${Directory.systemTemp.path}/$nombreSugerido');
+    await archivo.writeAsBytes(respuesta.bodyBytes);
+    return archivo;
+  }
 
   Future<dynamic> _enviar(Future<http.Response> Function() peticion) async {
     late http.Response respuesta;
