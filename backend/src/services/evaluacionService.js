@@ -162,6 +162,18 @@ export const crearEvaluacion = async (idProyecto, data, usuario) => {
   if (!rubrica.activa) throw errorConEstado('La rúbrica especificada no está activa', 400);
   if (!rubrica.criterios.length) throw errorConEstado('La rúbrica no contiene criterios de evaluación', 400);
 
+  const evaluacionExistente = data.id_entrega
+    ? await prisma.evaluacion.findUnique({ where: { id_entrega: data.id_entrega } })
+    : null;
+  if (evaluacionExistente) {
+    if (evaluacionExistente.id_docente !== usuario.id_usuario) {
+      throw errorConEstado('No tienes permisos para cambiar esta evaluación', 403);
+    }
+    if (evaluacionExistente.estado === 'cerrada') {
+      throw errorConEstado('No se puede modificar una evaluación cerrada. Debe reabrirla primero.', 400);
+    }
+  }
+
   const arbol = construirArbolRubrica(rubrica.criterios);
   let notaFinalRedondeada;
   let evaluacionesMap;
@@ -175,26 +187,31 @@ export const crearEvaluacion = async (idProyecto, data, usuario) => {
   }
 
   const evaluacion = await prisma.$transaction(async (tx) => {
-    const creada = await tx.evaluacion.create({
-      data: {
-        id_proyecto: idProyecto,
-        id_entrega: data.id_entrega,
-        id_rubrica: data.id_rubrica,
-        id_docente: usuario.id_usuario,
-        nota_final: notaFinalRedondeada,
-        retroalimentacion: data.retroalimentacion,
-        estado: 'borrador',
-        calificaciones: {
-          create: data.calificaciones.map((item) => ({
-            id_criterio: item.id_criterio,
-            nota: evaluacionesMap.get(item.id_criterio)
-          }))
-        }
-      },
-      include: incluirEvaluacion
-    });
+    const calificaciones = data.calificaciones.map((item) => ({
+      id_criterio: item.id_criterio,
+      nota: evaluacionesMap.get(item.id_criterio)
+    }));
+    const datosEvaluacion = {
+      id_proyecto: idProyecto,
+      id_entrega: data.id_entrega,
+      id_rubrica: data.id_rubrica,
+      id_docente: usuario.id_usuario,
+      nota_final: notaFinalRedondeada,
+      retroalimentacion: data.retroalimentacion
+    };
+    const guardada = data.id_entrega
+      ? await tx.evaluacion.upsert({
+        where: { id_entrega: data.id_entrega },
+        update: { ...datosEvaluacion, calificaciones: { deleteMany: {}, create: calificaciones } },
+        create: { ...datosEvaluacion, estado: 'borrador', calificaciones: { create: calificaciones } },
+        include: incluirEvaluacion
+      })
+      : await tx.evaluacion.create({
+        data: { ...datosEvaluacion, estado: 'borrador', calificaciones: { create: calificaciones } },
+        include: incluirEvaluacion
+      });
     if (data.id_entrega) await tx.entrega.update({ where: { id_entrega: data.id_entrega }, data: { nota_base: notaFinalRedondeada } });
-    return creada;
+    return guardada;
   });
   return evaluacion;
 };
