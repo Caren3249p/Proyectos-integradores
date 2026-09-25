@@ -62,7 +62,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  void _manejarMenu(String accion) {
+  void _manejarMenu(String accion) async {
     switch (accion) {
       case 'mi_proyecto':
         break; // ya estamos aquí
@@ -74,15 +74,41 @@ class _HomeScreenState extends State<HomeScreen> {
         ).then((_) => _recargar());
         break;
       case 'ficha':
-        _pendiente('Ficha & Entregas');
+        _irAFichaDelEstudiante(pestana: 0);
         break;
       case 'backlog':
-        _pendiente('Backlog / Kanban');
+        _irAFichaDelEstudiante(pestana: 2);
         break;
       case 'actas':
-        _pendiente('Actas de Asesoría');
+        _irAFichaDelEstudiante(pestana: 3);
         break;
     }
+  }
+
+  /// El drawer no sabe de qué proyecto se habla; para un estudiante (que
+  /// normalmente tiene uno solo) se toma el primero de su lista.
+  Future<void> _irAFichaDelEstudiante({required int pestana}) async {
+    List<Proyecto> proyectos;
+    try {
+      proyectos = await context.read<ProyectoService>().misProyectos();
+    } on ApiException {
+      proyectos = const [];
+    }
+    if (proyectos.isEmpty) {
+      _pendiente('Crea primero un proyecto para acceder a esta sección');
+      return;
+    }
+    if (!mounted) return;
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ProyectoDetalleScreen(
+          idProyecto: proyectos.first.idProyecto,
+          pestanaInicial: pestana,
+        ),
+      ),
+    );
+    if (mounted) _recargar();
   }
 
   @override
@@ -137,11 +163,11 @@ class _HomeScreenState extends State<HomeScreen> {
       floatingActionButton: usuario.esDocente
           ? null
           : FloatingActionButton.extended(
-        onPressed: _crearProyecto,
-        backgroundColor: TemaUpb.rojo,
-        icon: const Icon(Icons.add),
-        label: const Text('Nuevo proyecto'),
-      ),
+              onPressed: _crearProyecto,
+              backgroundColor: TemaUpb.rojo,
+              icon: const Icon(Icons.add),
+              label: const Text('Nuevo proyecto'),
+            ),
       body: usuario.esDocente
           ? const DocenteDashboardScreen()
           : RefreshIndicator(
@@ -181,23 +207,23 @@ class _HomeScreenState extends State<HomeScreen> {
                     onTap: () => _abrirDetalle(proyectos.first),
                   )
                 else ...[
-                    Text(
-                      usuario.esDocente ? 'Mis asesorías' : 'Mis proyectos',
+                  Text(
+                    usuario.esDocente ? 'Mis asesorías' : 'Mis proyectos',
+                    style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                        color: TemaUpb.textoOscuro),
+                  ),
+                  const SizedBox(height: 4),
+                  Text('${proyectos.length} registrados',
                       style: const TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.bold,
-                          color: TemaUpb.textoOscuro),
-                    ),
-                    const SizedBox(height: 4),
-                    Text('${proyectos.length} registrados',
-                        style: const TextStyle(
-                            fontSize: 12, color: TemaUpb.textoGris)),
-                    const SizedBox(height: 10),
-                    ...proyectos.map((p) => ProyectoCard(
-                      proyecto: p,
-                      onTap: () => _abrirDetalle(p),
-                    )),
-                  ],
+                          fontSize: 12, color: TemaUpb.textoGris)),
+                  const SizedBox(height: 10),
+                  ...proyectos.map((p) => ProyectoCard(
+                        proyecto: p,
+                        onTap: () => _abrirDetalle(p),
+                      )),
+                ],
               ],
             );
           },
@@ -273,7 +299,7 @@ class _BannerBienvenida extends StatelessWidget {
           const SizedBox(height: 6),
           const Text(
             'Plataforma de gestión y seguimiento continuo de '
-                'Proyectos Integradores UPB.',
+            'Proyectos Integradores UPB.',
             style: TextStyle(fontSize: 12.5, color: Colors.white54),
           ),
           if (!(usuario.esDocente as bool)) ...[
@@ -288,7 +314,7 @@ class _BannerBienvenida extends StatelessWidget {
                   borderRadius: BorderRadius.circular(12),
                 ),
                 padding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               ),
               icon: const Icon(Icons.create_new_folder_outlined, size: 18),
               label: const Text('Nuevo Proyecto',
@@ -351,9 +377,9 @@ class _EstadoVacio extends StatelessWidget {
           Text(
             esDocente
                 ? 'Toma un proyecto de la bolsa de proyectos sin asesor '
-                'para empezar.'
+                    'para empezar.'
                 : 'Tu cuenta ($correo) aún no tiene proyectos registrados. '
-                'Crea tu ficha técnica para comenzar.',
+                    'Crea tu ficha técnica para comenzar.',
             textAlign: TextAlign.center,
             style: const TextStyle(fontSize: 12.5, color: TemaUpb.textoGris),
           ),
@@ -363,7 +389,7 @@ class _EstadoVacio extends StatelessWidget {
               onPressed: onCrear,
               style: ElevatedButton.styleFrom(
                 padding:
-                const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
+                    const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
