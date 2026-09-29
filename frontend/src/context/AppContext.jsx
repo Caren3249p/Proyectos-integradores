@@ -102,7 +102,7 @@ export const AppProvider = ({ children }) => {
   const [selectedProjectId, setSelectedProjectId] = useState(null);
   const [selectedTab, setSelectedTab] = useState('ficha');
   const [notifications, setNotifications] = useState(mockNotifications);
-  const [backendConnected, setBackendConnected] = useState(false);
+  const [backendConnected, setBackendConnected] = useState(true);
   const [activeNotificationToast, setActiveNotificationToast] = useState(null);
   const [githubConnection, setGithubConnection] = useState({ connected: false, username: null });
 
@@ -154,105 +154,88 @@ export const AppProvider = ({ children }) => {
     checkBackend();
   }, []);
 
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    if (!params.get('github')) return;
-    const result = params.get('github');
-    const message = params.get('message');
-    window.history.replaceState({}, document.title, window.location.pathname);
-    if (result !== 'connected') {
-      showToast(message || 'No se pudo conectar con GitHub', 'error');
-      return;
-    }
-    api.get('/auth/me').then((res) => {
-      if (!res?.usuario) return;
-      const backendUser = res.usuario;
-      const updatedUser = { ...user, id: backendUser.id_usuario, nombre: backendUser.nombre, correo: backendUser.correo, rol: backendUser.rol, github_connected: true, github_username: backendUser.github_username };
-      setUser(updatedUser);
-      localStorage.setItem('upb_user', JSON.stringify(updatedUser));
-      setGithubConnection({ connected: true, username: backendUser.github_username });
-      showToast(`GitHub conectado como @${backendUser.github_username}`);
-    });
-  }, []);
+  const fetchProjects = async (currentUser = user) => {
+    if (!currentUser || !localStorage.getItem('upb_token')) return;
+    try {
+      const res = await api.get('/proyectos');
+      if (res && Array.isArray(res)) {
+        const mapProject = (p) => ({
+          id: p.id_proyecto,
+          titulo: p.titulo,
+          descripcion: p.descripcion || '',
+          curso: 'Proyecto Integrador II - UPB',
+          periodo: '2026-10',
+          porcentaje_avance: p.porcentaje_avance,
+          estado: p.estado,
+          creador: p.creador?.nombre || 'Estudiante',
+          creador_id: p.id_creador,
+          docente_id: p.id_docente,
+          docente_nombre: p.docente?.nombre || '',
+          id_plane_proyecto: p.id_plane_proyecto,
+          plane_workspace: 'upb-integradores',
+          integrantes: p.integrantes?.map(i => ({
+            id: i.usuario?.id_usuario,
+            nombre: i.usuario?.nombre,
+            correo: i.usuario?.correo,
+            rol: i.usuario?.rol
+          })) || [],
+          campos_tecnicos: p.campos_tecnicos || {},
+          repositorio: p.repositorio || null,
+          versiones: p.versiones?.map(v => ({
+            id: v.id_version,
+            id_version: v.id_version,
+            numero: v.numero,
+            es_final: v.es_final,
+            archivos: v.archivos?.map(a => ({
+              id_archivo: a.id_archivo,
+              nombre: a.nombre,
+              tamano: a.tamano,
+              extension: a.extension,
+              ruta: a.ruta
+            })) || []
+          })) || [],
+          tareas: p.tareas || [],
+          actas: [],
+          evaluacion: p.evaluaciones?.[0] ? {
+            id_evaluacion: p.evaluaciones[0].id_evaluacion,
+            rubrica_id: p.evaluaciones[0].id_rubrica,
+            docente: p.evaluaciones[0].docente?.nombre || '',
+            nota_final: Number(p.evaluaciones[0].nota_final),
+            retroalimentacion: p.evaluaciones[0].retroalimentacion,
+            estado: p.evaluaciones[0].estado,
+            fecha: p.evaluaciones[0].fecha,
+            detalles: p.evaluaciones[0].calificaciones?.map(c => ({
+              criterio_id: c.id_criterio,
+              nombre: c.criterio?.nombre,
+              peso: Number(c.criterio?.peso || 0),
+              nota: Number(c.nota)
+            })) || []
+          } : null
+        });
+        let mapped = res.map(mapProject);
 
-  // Fetch projects from backend if connected and logged in
-  useEffect(() => {
-    const fetchProjects = async () => {
-      if (backendConnected && user) {
-        const res = await api.get('/proyectos');
-        if (res && Array.isArray(res)) {
-          const mapProject = (p) => ({
-            id: p.id_proyecto,
-            titulo: p.titulo,
-            descripcion: p.descripcion || '',
-            curso: 'Proyecto Integrador II - UPB',
-            periodo: '2026-10',
-            porcentaje_avance: p.porcentaje_avance,
-            estado: p.estado,
-            creador: p.creador?.nombre || 'Estudiante',
-            creador_id: p.id_creador,
-            docente_id: p.id_docente,
-            docente_nombre: p.docente?.nombre || '',
-            id_plane_proyecto: p.id_plane_proyecto,
-            plane_workspace: 'upb-integradores',
-            integrantes: p.integrantes?.map(i => ({
-              id: i.usuario?.id_usuario,
-              nombre: i.usuario?.nombre,
-              correo: i.usuario?.correo,
-              rol: i.usuario?.rol
-            })) || [],
-            campos_tecnicos: p.campos_tecnicos || {},
-            repositorio: p.repositorio || null,
-            versiones: p.versiones?.map(v => ({
-              id: v.id_version,
-              id_version: v.id_version,
-              numero: v.numero,
-              es_final: v.es_final,
-              archivos: v.archivos?.map(a => ({
-                id_archivo: a.id_archivo,
-                nombre: a.nombre,
-                tamano: a.tamano,
-                extension: a.extension,
-                ruta: a.ruta
-              })) || []
-            })) || [],
-            tareas: p.tareas || [],
-            actas: [],
-            evaluacion: p.evaluaciones?.[0] ? {
-              id_evaluacion: p.evaluaciones[0].id_evaluacion,
-              rubrica_id: p.evaluaciones[0].id_rubrica,
-              docente: p.evaluaciones[0].docente?.nombre || '',
-              nota_final: Number(p.evaluaciones[0].nota_final),
-              retroalimentacion: p.evaluaciones[0].retroalimentacion,
-              estado: p.evaluaciones[0].estado,
-              fecha: p.evaluaciones[0].fecha,
-              detalles: p.evaluaciones[0].calificaciones?.map(c => ({
-                criterio_id: c.id_criterio,
-                nombre: c.criterio?.nombre,
-                peso: Number(c.criterio?.peso || 0),
-                nota: Number(c.nota)
-              })) || []
-            } : null
-          });
-          let mapped = res.map(mapProject);
+        if (currentUser.rol === 'docente') {
+          const availableRes = await api.get('/proyectos/sin-docente');
+          const available = availableRes?.proyectos || [];
+          const assignedIds = new Set(mapped.map(project => project.id));
+          mapped = [...mapped, ...available.filter(project => !assignedIds.has(project.id_proyecto)).map(mapProject)];
+        }
 
-          if (user.rol === 'docente') {
-            const availableRes = await api.get('/proyectos/sin-docente');
-            const available = availableRes?.proyectos || [];
-            const assignedIds = new Set(mapped.map(project => project.id));
-            mapped = [...mapped, ...available.filter(project => !assignedIds.has(project.id_proyecto)).map(mapProject)];
-          }
-
-          setProjects(mapped);
-          
-          if (mapped.length > 0) {
-            setSelectedProjectId(mapped[0].id);
-          }
+        setProjects(mapped);
+        
+        if (mapped.length > 0) {
+          setSelectedProjectId(prev => prev || mapped[0].id);
         }
       }
-    };
+    } catch (err) {
+      console.warn('Error fetching projects:', err);
+    }
+  };
+
+  // Fetch projects from backend on mount or when user changes
+  useEffect(() => {
     fetchProjects();
-  }, [backendConnected, user]);
+  }, [user?.id, user?.rol]);
 
   useEffect(() => {
     if (!backendConnected || !user || !localStorage.getItem('upb_token')) return;
