@@ -250,9 +250,9 @@ export const AppProvider = ({ children }) => {
     });
   }, [backendConnected, user?.id]);
 
-  useEffect(() => {
-    const fetchRubrics = async () => {
-      if (!backendConnected || user?.rol !== 'docente' || !localStorage.getItem('upb_token')) return;
+  const fetchRubrics = async (currentUser = user) => {
+    if (!currentUser || currentUser.rol !== 'docente' || !localStorage.getItem('upb_token')) return;
+    try {
       const res = await api.get('/rubricas');
       if (res?.rubricas) {
         setRubrics(res.rubricas.map(r => ({
@@ -262,13 +262,18 @@ export const AppProvider = ({ children }) => {
           activa: r.activa,
           tipo: r.tipo || 'DOCENTE',
           id_docente: r.id_docente,
-          docente_nombre: r.docente?.nombre || user.nombre,
+          docente_nombre: r.docente?.nombre || currentUser.nombre,
           criterios: normalizeRubricCriteria(r.criterios)
         })));
       }
-    };
+    } catch (err) {
+      console.warn('Error fetching rubrics:', err);
+    }
+  };
+
+  useEffect(() => {
     fetchRubrics();
-  }, [backendConnected, user]);
+  }, [user?.id, user?.rol]);
 
   const showToast = (msg, type = 'success') => {
     setActiveNotificationToast({ msg, type });
