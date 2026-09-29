@@ -1,4 +1,4 @@
-﻿import express from 'express';
+import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import path from 'path';
@@ -71,6 +71,14 @@ app.use('/api', actividadEntregableRoutes);
 
 app.get('/', (req, res) => {
   res.json({ message: 'API de Plataforma de Proyectos Integradores' });
+});
+
+app.get('/api', (req, res) => {
+  res.json({ status: 'ok', message: 'API de Plataforma de Proyectos Integradores' });
+});
+
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok' });
 });
 
 app.use((err, req, res, next) => {

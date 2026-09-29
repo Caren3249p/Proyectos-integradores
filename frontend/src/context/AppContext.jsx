@@ -143,7 +143,7 @@ export const AppProvider = ({ children }) => {
   useEffect(() => {
     const checkBackend = async () => {
       try {
-        const res = await fetch('http://localhost:3000/');
+        const res = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/health`);
         if (res.ok) {
           setBackendConnected(true);
         }
@@ -777,7 +777,7 @@ export const AppProvider = ({ children }) => {
             formData.append('archivo', file);
             formData.append('tipo', 'entregable');
             
-            const uploadRes = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000/api'}/versiones/${createdVersion.id_version}/archivos`, {
+            const uploadRes = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/versiones/${createdVersion.id_version}/archivos`, {
               method: 'POST',
               headers: { 'Authorization': `Bearer ${token}` },
               body: formData
