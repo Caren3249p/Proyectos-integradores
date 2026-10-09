@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { CalendarDays, CheckCircle2, ClipboardCheck, Clock, FileUp, Plus, Upload, Users } from 'lucide-react';
+import { CalendarDays, CheckCircle2, ClipboardCheck, Clock, Download, Eye, FileArchive, FileText, FileUp, Github, Plus, Upload, Users } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { api } from '../services/api';
 import { Badge, Button } from '../components/UIComponents';
+import { MatrizCriteriosModal } from '../components/MatrizCriteriosModal';
 
 const initialForm = { nombre: '', descripcion: '', fecha_limite: '', tipo: 'GRUPAL', id_rubrica_docente: '', id_rubrica_coevaluacion: '', coevaluacion_activa: true, criterios: [], proyectos: [] };
 const coevalScale = [0, 20, 40, 60, 80, 100];
@@ -22,6 +23,7 @@ export const Entregables = () => {
   const [files, setFiles] = useState({});
   const [ratings, setRatings] = useState({});
   const [teacherGrades, setTeacherGrades] = useState({});
+  const [matrizActividad, setMatrizActividad] = useState(null);
   const esDocente = user?.rol === 'docente';
   const userId = user?.id_usuario || user?.id;
   const rubricasDocentes = rubrics.filter((item) => item.tipo !== 'COEVALUACION' && item.activa);
@@ -118,7 +120,31 @@ export const Entregables = () => {
     return <section className="mt-5 pt-5 border-t border-neutral-200"><div className="flex items-center gap-2 mb-3"><CheckCircle2 className="w-4 h-4 text-emerald-600" /><h3 className="font-extrabold">Resultados consolidados</h3></div>{esDocente ? <div className="grid sm:grid-cols-2 gap-2">{resultados.map((resultado) => <div key={resultado.id_resultado} className="rounded-xl bg-[#f8f7f4] border border-neutral-200 p-3"><p className="text-sm font-bold">{resultado.usuario.nombre}</p><p className="text-xs text-neutral-500 mt-1">Coevaluación: <strong>{Number(resultado.total_coevaluacion).toFixed(2)}%</strong> · Nota final: <strong>{resultado.nota_final === null ? 'Pendiente de nota base' : Number(resultado.nota_final).toFixed(2)}</strong></p></div>)}</div> : propios && <div className="rounded-xl bg-emerald-50 border border-emerald-200 p-4"><p className="text-sm text-emerald-900">Tu coevaluación consolidada: <strong>{Number(propios.total_coevaluacion).toFixed(2)}%</strong></p><p className="text-sm text-emerald-900 mt-1">Nota final individual: <strong>{propios.nota_final === null ? 'Pendiente de calificación docente' : Number(propios.nota_final).toFixed(2)}</strong></p></div>}</section>;
   };
 
+  const iconoArchivo = (extension = '') => extension.toLowerCase() === '.zip' ? FileArchive : FileText;
+
+  const descargar = async (event, entrega, archivo) => {
+    event.preventDefault();
+    try {
+      await api.download(`/entregas/${entrega}/archivos/${archivo.id_archivo_entrega}/descarga`, archivo.nombre);
+    } catch (error) {
+      showToast(error.message || 'No se pudo descargar el archivo', 'error');
+    }
+  };
+
+  const renderEvidence = (delivery, project) => {
+    const archivos = delivery?.archivos || [];
+    return <section className="mt-5 pt-5 border-t border-neutral-200 space-y-3"><div className="flex items-center justify-between gap-3"><h3 className="font-extrabold">Evidencias entregadas</h3><span className="text-xs text-neutral-500">{archivos.length} archivo(s)</span></div><div className="flex items-center justify-between gap-3 p-3 bg-neutral-50 rounded-xl border border-neutral-200"><span className="text-xs font-bold text-neutral-700">Repositorio del proyecto</span>{project.repositorio?.url ? <a href={project.repositorio.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-neutral-900 text-white text-xs font-bold"><Github className="w-3.5 h-3.5" />Ver repositorio</a> : <span className="text-[11px] text-amber-600 bg-amber-50 px-2 py-1 rounded-md font-semibold">Sin repositorio enlazado</span>}</div>{archivos.map((archivo) => { const Icon = iconoArchivo(archivo.extension); return <div key={archivo.id_archivo_entrega} className="flex items-center justify-between gap-3 p-2.5 bg-white rounded-xl border border-neutral-200"><div className="flex items-center gap-2.5 min-w-0"><Icon className="w-4 h-4 text-[#C8102E] shrink-0" /><div className="min-w-0"><p className="text-xs font-bold text-neutral-800 truncate">{archivo.nombre}</p><p className="text-[10px] text-neutral-400">{(archivo.tamano / 1024 / 1024).toFixed(2)} MB</p></div></div><a href="#" onClick={(event) => descargar(event, delivery.id_entrega, archivo)} className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold rounded-lg bg-neutral-100 text-neutral-700 shrink-0"><Download className="w-3.5 h-3.5" />Descargar</a></div>; })}</section>;
+  };
+
   const renderCard = (activity, assignment) => {
+    if (!esDocente) return <React.Fragment key={assignment.id_actividad_proyecto}><div className="flex justify-end"><Button type="button" variant="secondary" size="sm" icon={Eye} onClick={() => setMatrizActividad(activity)}>Ver criterios y matriz</Button></div>{renderLegacyCard(activity, assignment)}{matrizActividad?.id_actividad === activity.id_actividad && <MatrizCriteriosModal actividad={activity} onClose={() => setMatrizActividad(null)} />}</React.Fragment>;
+    const delivery = assignment.entrega;
+    const criterios = (activity.criterios_snapshot || []).filter((criterio) => criterio.seleccionado);
+    const notaBase = delivery?.nota_base ?? delivery?.evaluacion?.nota_final;
+    return <article key={assignment.id_actividad_proyecto} className="bg-white rounded-[1.5rem] border border-neutral-200/80 shadow-sm overflow-hidden"><div className="p-5 sm:p-7"><div className="flex flex-col lg:flex-row justify-between gap-5"><div><Badge status={delivery?.estado === 'ENTREGADA' ? 'activo' : 'en_revision'}>{delivery?.estado === 'ENTREGADA' ? 'Entregada' : 'Pendiente'}</Badge><h2 className="text-2xl font-black text-[#201b16] mt-3">{activity.nombre}</h2><p className="text-sm text-neutral-600 mt-2">{assignment.proyecto.titulo}</p></div><div className="text-right text-sm text-neutral-500"><p>Fecha limite</p><p className="font-bold">{formatDate(activity.fecha_limite)}</p></div></div>{delivery && renderEvidence(delivery, assignment.proyecto)}{delivery && <section className="mt-5 pt-5 border-t border-neutral-200"><div className="flex justify-between mb-3"><div><p className="text-sm font-extrabold">Calificacion docente</p><p className="text-xs text-neutral-500">Solo hojas seleccionadas: {criterios.length}</p></div><span className="text-xs font-bold text-[#a77f2d]">{notaBase === null || notaBase === undefined ? 'Pendiente' : `Nota base: ${Number(notaBase).toFixed(2)} / 5.0`}</span></div><div className="grid sm:grid-cols-2 gap-2">{criterios.map((criterio) => <label key={criterio.id_criterio} className="text-xs font-bold text-neutral-600">{criterio.nombre}<input type="number" min="0" max="5" step="0.1" value={teacherGrades[`${delivery.id_entrega}:${criterio.id_criterio}`] || ''} onChange={(event) => setTeacherGrades({ ...teacherGrades, [`${delivery.id_entrega}:${criterio.id_criterio}`]: event.target.value })} className="field mt-1" /></label>)}</div><Button type="button" variant="primary" className="mt-3" onClick={() => guardarEvaluacion(delivery.id_entrega, criterios)}>Guardar calificacion</Button></section>}</div></article>;
+  };
+
+  const renderLegacyCard = (activity, assignment) => {
     const delivery = assignment.entrega;
     const selectedCriteria = (activity.criterios_snapshot || []).filter((item) => item.seleccionado);
     const pending = delivery?.coevaluaciones?.filter((item) => item.id_evaluador === userId && item.estado !== 'ENVIADA') || [];

@@ -1,4 +1,4 @@
-import { actividadEntregableSchema } from '../utils/validators.js';
+import { actividadEntregableSchema, asignarProyectosSchema } from '../utils/validators.js';
 import { asignarProyectos, crearActividad, listarActividades, obtenerActividad, publicarActividad } from '../services/actividadEntregableService.js';
 
 const responderError = (res, error) => {
@@ -29,8 +29,7 @@ export const publicar = async (req, res) => {
 
 export const asignar = async (req, res) => {
   try {
-    const proyectos = req.body?.proyectos;
-    if (!Array.isArray(proyectos) || !proyectos.length) return res.status(400).json({ error: 'Debe enviar proyectos' });
-    res.json({ actividad: await asignarProyectos(id(req), proyectos.map(Number), req.usuario) });
+    const { proyectos } = asignarProyectosSchema.parse(req.body);
+    res.json({ actividad: await asignarProyectos(id(req), proyectos, req.usuario) });
   } catch (error) { responderError(res, error); }
 };

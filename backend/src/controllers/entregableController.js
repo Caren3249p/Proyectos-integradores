@@ -5,7 +5,8 @@ import {
   publicarEntregable,
   registrarEntrega,
   registrarEntregaPorId,
-  guardarArchivosEntrega
+  guardarArchivosEntrega,
+  obtenerArchivoEntrega
 } from '../services/entregableService.js';
 import { entregableSchema } from '../utils/validators.js';
 
@@ -47,5 +48,14 @@ export const subirArchivos = async (req, res) => {
     await guardarArchivosEntrega(id(req, 'idEntrega'), req.files, req.usuario);
     const entrega = await registrarEntregaPorId(id(req, 'idEntrega'), req.usuario);
     res.status(201).json({ message: 'Archivos adjuntados exitosamente', entrega });
+  } catch (error) { responderError(res, error); }
+};
+
+export const descargarArchivo = async (req, res) => {
+  try {
+    const { archivo, ruta } = await obtenerArchivoEntrega(id(req, 'idEntrega'), id(req, 'idArchivo'), req.usuario);
+    res.download(ruta, archivo.nombre, (error) => {
+      if (error && !res.headersSent) responderError(res, error);
+    });
   } catch (error) { responderError(res, error); }
 };

@@ -1,7 +1,27 @@
-backend/.env
+# Secrets and local environment files
+**/.env
+**/.env.*
+!.env.example
+!**/.env.example
 secret-key-*.csv
-backend/node_modules/
-frontend/node_modules/
+
+# Node dependencies and generated package metadata
+**/node_modules/
+**/.npm/
+
+# Frontend and build output
+frontend/dist/
+**/coverage/
+**/.vite/
+
+# Backend runtime data and uploaded files
+backend/uploads/
 backend/prisma/*.db
-backend/ env.example
-backend/ node_modules
+*.log
+
+# Flutter/Dart generated files (platform-specific .gitignore files remain authoritative too)
+mobile/.dart_tool/
+mobile/build/
+mobile/.flutter-plugins
+mobile/.flutter-plugins-dependencies
+mobile/.packages

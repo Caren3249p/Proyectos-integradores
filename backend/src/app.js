@@ -1,10 +1,8 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import path from 'path';
 import bcrypt from 'bcrypt';
 import { PrismaClient } from '@prisma/client';
-import { fileURLToPath } from 'url';
 
 import authRoutes from './routes/authRoutes.js';
 import backlogRoutes from './routes/backlogRoutes.js';
@@ -21,9 +19,6 @@ import coevaluacionRoutes from './routes/coevaluacionRoutes.js';
 import actividadEntregableRoutes from './routes/actividadEntregableRoutes.js';
 
 dotenv.config();
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -51,9 +46,6 @@ const ensureDefaultAdmin = async () => {
 
 app.use(cors());
 app.use(express.json());
-
-// Servir la carpeta uploads estaticamente
-app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 app.use('/api/auth', authRoutes);
 app.use('/api/backlog', backlogRoutes);
@@ -83,6 +75,7 @@ app.get('/api/health', (req, res) => {
 
 app.use((err, req, res, next) => {
   console.error(err.message);
+  if (err.name === 'ZodError') return res.status(400).json({ error: 'Datos inválidos', detalles: err.errors });
   res.status(err.status || 500).json({ error: err.status ? err.message : 'Error interno del servidor' });
 });
 

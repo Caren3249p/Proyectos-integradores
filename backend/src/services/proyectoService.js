@@ -39,7 +39,10 @@ const exigirProyecto = async (id) => {
 const esIntegrante = (proyecto, usuario) => proyecto.integrantes.some((integrante) => integrante.id_usuario === idUsuario(usuario));
 
 const exigirPuedeModificar = (proyecto, usuario) => {
-  if (usuario?.rol === 'docente' || (!esIntegrante(proyecto, usuario) && proyecto.id_creador !== idUsuario(usuario))) {
+  if (usuario?.rol === 'docente' && proyecto.id_docente !== idUsuario(usuario)) {
+    throw errorConEstado('Solo el docente asignado puede modificar este proyecto', 403);
+  }
+  if (usuario?.rol !== 'docente' && usuario?.rol !== 'admin' && !esIntegrante(proyecto, usuario) && proyecto.id_creador !== idUsuario(usuario)) {
     throw errorConEstado('No tiene permisos para modificar este proyecto', 403);
   }
 };
@@ -108,7 +111,16 @@ export const crearProyecto = async (data, usuario) => {
   return proyecto;
 };
 
-export const obtenerDetalleProyecto = (id) => exigirProyecto(id);
+export const obtenerDetalleProyecto = async (id, usuario) => {
+  const proyecto = await exigirProyecto(id);
+  if (usuario?.rol === 'docente' && proyecto.id_docente !== idUsuario(usuario)) {
+    throw errorConEstado('Solo el docente asignado puede consultar este proyecto', 403);
+  }
+  if (usuario?.rol === 'estudiante' && !esIntegrante(proyecto, usuario) && proyecto.id_creador !== idUsuario(usuario)) {
+    throw errorConEstado('No tiene permisos para consultar este proyecto', 403);
+  }
+  return proyecto;
+};
 
 export const actualizarProyecto = async (id, data, usuario) => {
   const proyecto = await exigirProyecto(id);

@@ -1,6 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import { errorConEstado } from './proyectoService.js';
-import { calcularTotalCoevaluacion, validarCalificacionesCoevaluacion } from './coevaluacionCalculator.js';
+import { calcularNotaDefinitiva, calcularTotalCoevaluacion, validarCalificacionesCoevaluacion } from './coevaluacionCalculator.js';
 
 const prisma = new PrismaClient();
 
@@ -53,8 +53,8 @@ const recalcularResultados = async (tx, idEntrega) => {
     const total = calcularTotalCoevaluacion(promedios, criterios);
     await tx.resultadoCoevaluacion.upsert({
       where: { id_entrega_id_usuario: { id_entrega: idEntrega, id_usuario: participante.id_usuario } },
-      create: { id_entrega: idEntrega, id_usuario: participante.id_usuario, total_coevaluacion: total, nota_base: entrega.nota_base, nota_final: entrega.nota_base === null ? null : Number(entrega.nota_base) * (total / 100) },
-      update: { total_coevaluacion: total, nota_base: entrega.nota_base, nota_final: entrega.nota_base === null ? null : Number(entrega.nota_base) * (total / 100) }
+      create: { id_entrega: idEntrega, id_usuario: participante.id_usuario, total_coevaluacion: total, nota_base: entrega.nota_base, nota_final: calcularNotaDefinitiva(entrega.nota_base, total) },
+      update: { total_coevaluacion: total, nota_base: entrega.nota_base, nota_final: calcularNotaDefinitiva(entrega.nota_base, total) }
     });
   }
   return true;

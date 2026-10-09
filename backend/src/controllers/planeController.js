@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import { crearProyectoPlane, obtenerEstadosPlane } from '../services/planeService.js';
+import { crearProyectoPlaneSchema } from '../utils/validators.js';
 
 const prisma = new PrismaClient();
 
@@ -10,11 +11,21 @@ const crearIdentificador = (titulo) => {
 
 export const crearProyecto = async (req, res, next) => {
   try {
-    if (!req.body.titulo?.trim()) return res.status(400).json({ error: 'El título es obligatorio' });
-    const planeProject = await crearProyectoPlane(req.body.titulo.trim(), req.body.descripcion || '', crearIdentificador(req.body.titulo));
+    if (req.usuario.rol !== 'docente') return res.status(403).json({ error: 'Solo los docentes pueden crear proyectos' });
+    const data = crearProyectoPlaneSchema.parse(req.body);
     const proyecto = await prisma.proyecto.create({
-      data: { titulo: req.body.titulo.trim(), descripcion: req.body.descripcion || null, id_plane_proyecto: planeProject.id }
+      data: { titulo: data.titulo, descripcion: data.descripcion || null, id_docente: req.usuario.id_usuario }
     });
+    let planeProject = null;
+    try {
+      planeProject = await crearProyectoPlane(data.titulo, data.descripcion, crearIdentificador(data.titulo));
+      if (planeProject?.id) {
+        await prisma.proyecto.update({ where: { id_proyecto: proyecto.id_proyecto }, data: { id_plane_proyecto: planeProject.id } });
+        proyecto.id_plane_proyecto = planeProject.id;
+      }
+    } catch (planeError) {
+      console.warn('[Plane] No se pudo sincronizar el proyecto:', planeError.message);
+    }
     res.status(201).json({ proyecto, plane: planeProject });
   } catch (error) { next(error); }
 };

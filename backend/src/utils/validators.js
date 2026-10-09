@@ -292,3 +292,23 @@ export const evaluacionEntregaSchema = z.object({
   calificaciones: z.array(calificacionItemSchema).min(1),
   retroalimentacion: z.string().trim().min(20)
 });
+
+export const asignarProyectosSchema = z.object({
+  proyectos: z.array(idSchema).min(1, 'Debe enviar al menos un proyecto')
+});
+
+export const tareaBacklogSchema = z.object({
+  titulo: z.string().trim().min(1).max(255),
+  descripcion: z.string().trim().max(5000).optional().default(''),
+  estado: z.enum(['por_hacer', 'en_progreso', 'hecho']).default('por_hacer'),
+  asignado_a: z.string().trim().min(1).nullable().optional()
+});
+
+export const actualizarEstadoTareaSchema = z.object({
+  estado: z.enum(['por_hacer', 'en_progreso', 'hecho'])
+});
+
+export const crearProyectoPlaneSchema = z.object({
+  titulo: z.string().trim().min(1).max(150),
+  descripcion: z.string().trim().max(5000).optional().default('')
+});

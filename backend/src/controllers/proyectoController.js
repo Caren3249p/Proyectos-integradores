@@ -32,7 +32,7 @@ export const crear = async (req, res) => {
 };
 
 export const obtener = async (req, res) => {
-  try { res.json({ proyecto: await obtenerDetalleProyecto(id(req)) }); }
+  try { res.json({ proyecto: await obtenerDetalleProyecto(id(req), req.usuario) }); }
   catch (error) { responderError(res, error); }
 };
 

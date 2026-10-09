@@ -1,6 +1,11 @@
 export const PESO_CRITERIO = 0.2;
 export const ESCALA_COEVALUACION = new Set([0, 20, 40, 60, 80, 100]);
 
+export const calcularNotaDefinitiva = (notaBase, totalCoevaluacion) => {
+  if (notaBase === null || notaBase === undefined) return null;
+  return Math.round(Number(notaBase) * (Number(totalCoevaluacion) / 100) * 100) / 100;
+};
+
 export const calcularTotalCoevaluacion = (calificaciones, criterios) => criterios.reduce((total, criterio) => {
   const item = calificaciones.find(({ id_criterio }) => id_criterio === criterio.id_criterio);
   const valorReal = 100 * Math.sqrt(Number(item?.calificacion_base || 0) / 100);

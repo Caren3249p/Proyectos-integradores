@@ -8,7 +8,7 @@ const prisma = new PrismaClient();
 const obtenerVersionConAcceso = async (idVersion, usuario) => {
   const version = await prisma.versionProyecto.findUnique({ where: { id_version: idVersion }, include: { proyecto: { include: { integrantes: true } } } });
   if (!version) throw errorConEstado('Versión no encontrada', 404);
-  if (usuario.rol !== 'docente' && !esIntegrante(version.proyecto, usuario)) throw errorConEstado('No tiene permisos para acceder a esta versión', 403);
+  if ((usuario.rol === 'docente' && version.proyecto.id_docente !== usuario.id_usuario) || (usuario.rol !== 'docente' && !esIntegrante(version.proyecto, usuario))) throw errorConEstado('No tiene permisos para acceder a esta versión', 403);
   return version;
 };
 
@@ -25,7 +25,7 @@ export const guardarArchivo = async (idVersion, archivo, tipo, usuario) => {
 export const obtenerArchivo = async (idArchivo, usuario) => {
   const archivo = await prisma.archivo.findUnique({ where: { id_archivo: idArchivo }, include: { version: { include: { proyecto: { include: { integrantes: true } } } } } });
   if (!archivo) throw errorConEstado('Archivo no encontrado', 404);
-  if (usuario.rol !== 'docente' && !esIntegrante(archivo.version.proyecto, usuario)) throw errorConEstado('No tiene permisos para descargar este archivo', 403);
+  if ((usuario.rol === 'docente' && archivo.version.proyecto.id_docente !== usuario.id_usuario) || (usuario.rol !== 'docente' && !esIntegrante(archivo.version.proyecto, usuario))) throw errorConEstado('No tiene permisos para descargar este archivo', 403);
   return archivo;
 };
 

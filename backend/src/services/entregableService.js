@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client';
+import path from 'node:path';
 import { errorConEstado, esIntegrante } from './proyectoService.js';
 
 const prisma = new PrismaClient();
@@ -143,7 +144,7 @@ export const registrarEntregaPorId = async (idEntrega, usuario) => {
     include: { actividad_proyecto: { include: { actividad: true } }, proyecto: { include: { integrantes: true } } }
   });
   if (!entrega) throw errorConEstado('Entrega no encontrada', 404);
-  if (usuario.rol === 'docente' || !entrega.proyecto.integrantes.some(({ id_usuario }) => id_usuario === usuario.id_usuario)) {
+  if ((usuario.rol === 'docente' && entrega.proyecto.id_docente !== usuario.id_usuario) || (usuario.rol !== 'docente' && !entrega.proyecto.integrantes.some(({ id_usuario }) => id_usuario === usuario.id_usuario))) {
     throw errorConEstado('Solo un integrante puede registrar la entrega', 403);
   }
   const fechaEntrega = new Date();
@@ -161,7 +162,28 @@ export const registrarEntregaPorId = async (idEntrega, usuario) => {
 export const guardarArchivosEntrega = async (idEntrega, archivos, usuario) => {
   const entrega = await prisma.entrega.findUnique({ where: { id_entrega: idEntrega }, include: { entregable: true, proyecto: { include: { integrantes: true } }, participantes: true } });
   if (!entrega) throw errorConEstado('Entrega no encontrada', 404);
-  if (usuario.rol !== 'docente' && !esIntegrante(entrega.proyecto, usuario)) throw errorConEstado('No tiene permisos para adjuntar archivos', 403);
+  if ((usuario.rol === 'docente' && entrega.proyecto.id_docente !== usuario.id_usuario) || (usuario.rol !== 'docente' && !esIntegrante(entrega.proyecto, usuario))) throw errorConEstado('No tiene permisos para adjuntar archivos', 403);
   if (!archivos?.length) throw errorConEstado('Debe enviar al menos un archivo');
-  return prisma.archivoEntrega.createMany({ data: archivos.map((archivo) => ({ id_entrega: idEntrega, nombre: archivo.originalname, nombre_fisico: archivo.filename, ruta: archivo.path, extension: archivo.originalname.includes('.') ? archivo.originalname.slice(archivo.originalname.lastIndexOf('.')).toLowerCase() : '', tamano: archivo.size })) });
+  return prisma.archivoEntrega.createMany({ data: archivos.map((archivo) => ({ id_entrega: idEntrega, nombre: archivo.originalname, nombre_fisico: archivo.filename, ruta: path.posix.join('entregas', archivo.filename), extension: archivo.originalname.includes('.') ? archivo.originalname.slice(archivo.originalname.lastIndexOf('.')).toLowerCase() : '', tamano: archivo.size })) });
+};
+
+export const obtenerArchivoEntrega = async (idEntrega, idArchivo, usuario) => {
+  const archivo = await prisma.archivoEntrega.findUnique({
+    where: { id_archivo_entrega: idArchivo },
+    include: { entrega: { include: { proyecto: true } } }
+  });
+  if (!archivo || archivo.id_entrega !== idEntrega) throw errorConEstado('Archivo no encontrado', 404);
+  if (usuario?.rol !== 'docente' || archivo.entrega.proyecto.id_docente !== usuario.id_usuario) {
+    throw errorConEstado('Solo el docente asignado puede descargar archivos de este proyecto', 403);
+  }
+
+  const rutaRelativa = path.isAbsolute(archivo.ruta)
+    ? path.relative(path.resolve('uploads'), archivo.ruta)
+    : archivo.ruta;
+  const rutaNormalizada = path.normalize(rutaRelativa);
+  if (rutaNormalizada.startsWith('..') || path.isAbsolute(rutaNormalizada)) {
+    throw errorConEstado('La ruta del archivo no es válida', 500);
+  }
+
+  return { archivo, ruta: path.resolve('uploads', rutaNormalizada) };
 };

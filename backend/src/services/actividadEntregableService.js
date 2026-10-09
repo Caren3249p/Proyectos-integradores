@@ -13,8 +13,8 @@ const incluirActividad = {
   rubrica_coevaluacion: { select: { id_rubrica: true, nombre: true, tipo: true, criterios: { where: { es_hoja: true }, orderBy: { orden: 'asc' } } } },
   proyectos: {
     include: {
-      proyecto: { select: { id_proyecto: true, titulo: true, id_docente: true, integrantes: { select: { id_usuario: true } } } },
-      entrega: { include: { participantes: true, archivos: true, evaluacion: true, coevaluaciones: { include: { evaluado: { select: { id_usuario: true, nombre: true } } } }, resultados_coevaluacion: { include: { usuario: { select: { id_usuario: true, nombre: true } } } } } }
+      proyecto: { select: { id_proyecto: true, titulo: true, id_docente: true, repositorio: { select: { url: true, es_privado: true, origen: true } }, integrantes: { select: { id_usuario: true, usuario: { select: { id_usuario: true, nombre: true, correo: true } } } } } },
+      entrega: { include: { participantes: true, archivos: { select: { id_archivo_entrega: true, nombre: true, nombre_fisico: true, ruta: true, tamano: true, extension: true, fecha_subida: true } }, evaluacion: true, coevaluaciones: { include: { evaluado: { select: { id_usuario: true, nombre: true } } } }, resultados_coevaluacion: { include: { usuario: { select: { id_usuario: true, nombre: true } } } } } }
     }
   }
 };
@@ -132,15 +132,16 @@ export const publicarActividad = async (idActividad, usuario) => {
 };
 
 export const listarActividades = async (usuario) => {
-  const where = usuario.rol === 'docente' ? { id_docente: usuario.id_usuario } : { proyectos: { some: { proyecto: { integrantes: { some: { id_usuario: usuario.id_usuario } } } } } };
+  const where = usuario.rol === 'docente'
+    ? { proyectos: { some: { proyecto: { id_docente: usuario.id_usuario } } } }
+    : { proyectos: { some: { proyecto: { integrantes: { some: { id_usuario: usuario.id_usuario } } } } } };
   return prisma.actividadEntregable.findMany({ where, include: incluirActividad, orderBy: { fecha_limite: 'asc' } });
 };
 
 export const obtenerActividad = async (idActividad, usuario) => {
   const actividad = await prisma.actividadEntregable.findUnique({ where: { id_actividad: idActividad }, include: incluirActividad });
   if (!actividad) throw errorConEstado('Actividad no encontrada', 404);
-  if (usuario.rol === 'docente' && actividad.id_docente === usuario.id_usuario) return actividad;
-  if (actividad.proyectos.some(({ proyecto }) => proyecto.id_docente === usuario.id_usuario)) return actividad;
+  if (usuario.rol === 'docente' && actividad.proyectos.some(({ proyecto }) => proyecto.id_docente === usuario.id_usuario)) return actividad;
   const asignada = actividad.proyectos.some(({ proyecto }) => proyecto.integrantes?.some(({ id_usuario }) => id_usuario === usuario.id_usuario));
   if (!asignada) throw errorConEstado('No tiene permisos para consultar esta actividad', 403);
   return actividad;

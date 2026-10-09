@@ -13,6 +13,30 @@ const getHeaders = (isFormData = false) => {
 };
 
 export const api = {
+  async download(endpoint, fallbackName) {
+    const res = await fetch(API_BASE + endpoint, {
+      method: 'GET',
+      headers: getHeaders()
+    });
+    if (!res.ok) {
+      const error = await res.json().catch(() => ({ error: 'No se pudo descargar el archivo' }));
+      throw new Error(error.error || 'No se pudo descargar el archivo');
+    }
+    const blob = await res.blob();
+    const disposition = res.headers.get('content-disposition') || '';
+    const encodedName = /filename\*=UTF-8''([^;]+)/i.exec(disposition)?.[1];
+    const quotedName = /filename="([^"]+)"/i.exec(disposition)?.[1];
+    const filename = encodedName ? decodeURIComponent(encodedName) : quotedName || fallbackName;
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = filename;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+  },
+
   async get(endpoint) {
     try {
       const res = await fetch(API_BASE + endpoint, {
