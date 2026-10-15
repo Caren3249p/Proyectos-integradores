@@ -68,7 +68,18 @@ const resolverEstado = async (projectId, estado) => {
 
 export const crearTareaPlane = async (projectId, data) => {
   const state = await resolverEstado(projectId, data.state || 'por_hacer');
-  return requestPlane(`/workspaces/${workspace}/projects/${projectId}/work-items/`, { method: 'POST', body: JSON.stringify({ name: data.name, description_html: data.description || '', state, assignees: data.assignee ? [data.assignee] : [] }) });
+  const payload = {
+    name: data.name,
+    description_html: data.description || '',
+    state,
+    priority: data.priority || 'none',
+    assignees: data.assignee ? [data.assignee] : []
+  };
+  if (data.dueDate) payload.target_date = data.dueDate;
+  if (data.estimatePoints !== null && data.estimatePoints !== undefined) {
+    payload.estimate_point = data.estimatePoints;
+  }
+  return requestPlane(`/workspaces/${workspace}/projects/${projectId}/work-items/`, { method: 'POST', body: JSON.stringify(payload) });
 };
 
 export const actualizarEstadoTareaPlane = async (projectId, issueId, estado) => {

@@ -280,6 +280,25 @@ export const AppProvider = ({ children }) => {
     setTimeout(() => setActiveNotificationToast(null), 4000);
   };
 
+  const abrirChat = async (destino) => {
+    const ventana = window.open('', '_blank');
+    if (!ventana) {
+      showToast('Permite las ventanas emergentes para abrir el chat.', 'error');
+      return false;
+    }
+
+    try {
+      const respuesta = await api.post('/integraciones/chat/lanzamiento', destino ? { destino } : {});
+      if (!respuesta?.url) throw new Error(respuesta?.error || 'No se pudo obtener el enlace del chat');
+      ventana.location.href = respuesta.url;
+      return true;
+    } catch (error) {
+      ventana.close();
+      showToast(error.message || 'No se pudo abrir el chat.', 'error');
+      return false;
+    }
+  };
+
   // isRegister=true → siempre rol estudiante. Docentes solo pueden hacer login.
   const login = async (email, password, isRegister = false, nombreCompleto = '') => {
     // Intento contra el backend real primero
@@ -560,23 +579,36 @@ export const AppProvider = ({ children }) => {
     return true;
   };
 
-  const addProjectTask = async (projectId, taskTitle, modulo = 'General') => {
+  const addProjectTask = async (projectId, taskInput, modulo = 'General') => {
     const project = projects.find(p => p.id === projectId);
     const token = localStorage.getItem('upb_token');
+    const taskData = typeof taskInput === 'string'
+      ? { titulo: taskInput }
+      : taskInput;
+    const taskTitle = taskData.titulo;
 
     // Si el proyecto tiene Plane sincronizado, crear la tarea vía backend
     if (token && project?.id_plane_proyecto) {
       try {
-        const res = await api.post(`/proyecto/${projectId}/tareas`, {
+        const res = await api.post(`/backlog/proyecto/${projectId}/tareas`, {
           titulo: taskTitle,
-          estado: 'por_hacer'
+          descripcion: taskData.descripcion || '',
+          estado: taskData.estado || 'por_hacer',
+          prioridad: taskData.prioridad || 'none',
+          asignado_a: taskData.asignado_a || null,
+          fecha_limite: taskData.fecha_limite || null,
+          puntos_estimacion: taskData.puntos_estimacion ?? null
         });
+        if (res?.error) throw new Error(getApiError(res, 'No se pudo crear la tarea en Plane'));
         if (res && res.tarea) {
           const newTask = {
             id: res.tarea.id,
             titulo: res.tarea.name || taskTitle,
-            estado: 'por_hacer',
-            prioridad: 'media',
+            descripcion: taskData.descripcion || '',
+            estado: taskData.estado || 'por_hacer',
+            prioridad: taskData.prioridad || 'none',
+            fecha_limite: taskData.fecha_limite || null,
+            puntos_estimacion: taskData.puntos_estimacion ?? null,
             modulo,
             asignado: user?.nombre || 'Estudiante'
           };
@@ -586,10 +618,13 @@ export const AppProvider = ({ children }) => {
             return { ...p, tareas: updatedTareas, porcentaje_avance: _calcAvance(updatedTareas) };
           }));
           showToast('Tarea creada y sincronizada con Plane');
-          return;
+          return true;
         }
+        throw new Error('Plane no confirmó la creación de la tarea');
       } catch (err) {
-        console.warn('[addProjectTask] Fallback local:', err);
+        console.error('[addProjectTask] Error creando tarea en Plane:', err);
+        showToast(err.message || 'No se pudo crear la tarea en Plane', 'error');
+        return false;
       }
     }
 
@@ -597,8 +632,11 @@ export const AppProvider = ({ children }) => {
     const newTask = {
       id: 'ISSUE-' + Math.floor(100 + Math.random() * 900),
       titulo: taskTitle,
-      estado: 'por_hacer',
-      prioridad: 'media',
+      descripcion: taskData.descripcion || '',
+      estado: taskData.estado || 'por_hacer',
+      prioridad: taskData.prioridad || 'none',
+      fecha_limite: taskData.fecha_limite || null,
+      puntos_estimacion: taskData.puntos_estimacion ?? null,
       modulo,
       asignado: user?.nombre || 'Estudiante'
     };
@@ -608,6 +646,7 @@ export const AppProvider = ({ children }) => {
       return { ...p, tareas: updatedTareas, porcentaje_avance: _calcAvance(updatedTareas) };
     }));
     showToast('Tarea agregada al Backlog del proyecto');
+    return true;
   };
 
   const _calcAvance = (tareas) => {
@@ -621,14 +660,16 @@ export const AppProvider = ({ children }) => {
 
     if (token && project?.id_plane_proyecto) {
       try {
-        const res = await api.get(`/proyecto/${projectId}/backlog`);
+        const res = await api.get(`/plane/proyectos/${projectId}/tablero`);
         if (res && res.tareas) {
           const mappedTasks = res.tareas.map(t => ({
             id: t.id,
             titulo: t.name,
-            estado: t.state_detail?.name?.toLowerCase() === 'done' ? 'completado' 
-                  : t.state_detail?.name?.toLowerCase() === 'in progress' ? 'en_progreso' 
-                  : 'por_hacer',
+            estado: ['done', 'hecho', 'completed', 'closed'].some(s => t.state_detail?.name?.toLowerCase().includes(s))
+              ? 'completado'
+              : ['in progress', 'en progreso'].some(s => t.state_detail?.name?.toLowerCase().includes(s))
+                ? 'en_progreso'
+                : t.state_detail?.name?.toLowerCase().includes('backlog') ? 'backlog' : 'por_hacer',
             prioridad: t.priority || 'media',
             modulo: 'General',
             asignado: t.assignees?.[0]?.display_name || user?.nombre || 'Estudiante'
@@ -652,7 +693,7 @@ export const AppProvider = ({ children }) => {
 
     if (token && project?.id_plane_proyecto && !String(taskId).startsWith('ISSUE-')) {
       try {
-        await api.patch(`/proyecto/${projectId}/tareas/${taskId}/estado`, { estado: planeState });
+        await api.patch(`/plane/proyectos/${projectId}/tareas/${taskId}/estado`, { estado: planeState });
       } catch (err) {
         console.warn('[updateTaskState] Fallback local:', err);
       }
@@ -888,6 +929,7 @@ export const AppProvider = ({ children }) => {
       showToast,
       login,
       logout,
+      abrirChat,
       deleteProject,
       addProjectMember,
       removeProjectMember,

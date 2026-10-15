@@ -38,7 +38,15 @@ export const crearTarea = async (req, res, next) => {
     if (!proyecto.id_plane_proyecto) return res.status(400).json({ error: 'El proyecto no está sincronizado con Plane' });
     const data = tareaBacklogSchema.parse(req.body);
     const estado = normalizarEstado(data.estado);
-    const tarea = await crearTareaPlane(proyecto.id_plane_proyecto, { name: data.titulo, description: data.descripcion, state: estado, assignee: data.asignado_a });
+    const tarea = await crearTareaPlane(proyecto.id_plane_proyecto, {
+      name: data.titulo,
+      description: data.descripcion,
+      state: estado,
+      priority: data.prioridad,
+      assignee: data.asignado_a,
+      dueDate: data.fecha_limite,
+      estimatePoints: data.puntos_estimacion
+    });
     await prisma.tareaBacklog.create({ data: { id_proyecto: id, id_plane_issue: tarea.id, titulo: tarea.name, estado, fecha_ultimo_sync: new Date() } });
     res.status(201).json({ message: 'Tarea creada exitosamente', tarea });
   } catch (error) { next(error); }

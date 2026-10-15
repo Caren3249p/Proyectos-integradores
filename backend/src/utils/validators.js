@@ -301,7 +301,10 @@ export const tareaBacklogSchema = z.object({
   titulo: z.string().trim().min(1).max(255),
   descripcion: z.string().trim().max(5000).optional().default(''),
   estado: z.enum(['por_hacer', 'en_progreso', 'hecho']).default('por_hacer'),
-  asignado_a: z.string().trim().min(1).nullable().optional()
+  prioridad: z.enum(['none', 'urgent', 'high', 'medium', 'low']).default('none'),
+  asignado_a: z.string().trim().min(1).nullable().optional(),
+  fecha_limite: z.string().date().nullable().optional(),
+  puntos_estimacion: z.coerce.number().int().min(0).max(100).nullable().optional()
 });
 
 export const actualizarEstadoTareaSchema = z.object({

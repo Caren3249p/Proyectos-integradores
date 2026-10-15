@@ -17,6 +17,8 @@ import githubProjectRoutes from './routes/githubProjectRoutes.js';
 import entregableRoutes from './routes/entregableRoutes.js';
 import coevaluacionRoutes from './routes/coevaluacionRoutes.js';
 import actividadEntregableRoutes from './routes/actividadEntregableRoutes.js';
+import chatIntegrationRoutes from './routes/chatIntegrationRoutes.js';
+import { obtenerJwks } from './controllers/chatIntegrationController.js';
 
 dotenv.config();
 
@@ -47,7 +49,21 @@ const ensureDefaultAdmin = async () => {
 app.use(cors());
 app.use(express.json());
 
+app.get('/', (req, res) => {
+  res.json({ message: 'API de Plataforma de Proyectos Integradores' });
+});
+
+app.get('/api', (req, res) => {
+  res.json({ status: 'ok', message: 'API de Plataforma de Proyectos Integradores' });
+});
+
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok' });
+});
+
 app.use('/api/auth', authRoutes);
+app.get('/.well-known/jwks.json', obtenerJwks);
+app.use('/api/integraciones', chatIntegrationRoutes);
 app.use('/api/backlog', backlogRoutes);
 app.use('/api/plane', planeRoutes);
 app.use('/api/proyectos', proyectoRoutes);
@@ -60,18 +76,6 @@ app.use('/api/projects', githubProjectRoutes);
 app.use('/api', entregableRoutes);
 app.use('/api', coevaluacionRoutes);
 app.use('/api', actividadEntregableRoutes);
-
-app.get('/', (req, res) => {
-  res.json({ message: 'API de Plataforma de Proyectos Integradores' });
-});
-
-app.get('/api', (req, res) => {
-  res.json({ status: 'ok', message: 'API de Plataforma de Proyectos Integradores' });
-});
-
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok' });
-});
 
 app.use((err, req, res, next) => {
   console.error(err.message);
