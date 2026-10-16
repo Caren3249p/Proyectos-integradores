@@ -83,10 +83,34 @@ class ApiClient {
     peticion.fields.addAll(campos);
     peticion.files
         .add(await http.MultipartFile.fromPath('archivo', rutaArchivo));
+    return _enviarMultipart(peticion);
+  }
 
+  /// Subida de varios archivos en un mismo multipart (ej. entregas de
+  /// actividades: el backend espera el campo "archivos", hasta 10).
+  Future<dynamic> subirArchivos(
+    String endpoint,
+    List<String> rutasArchivos, {
+    String campo = 'archivos',
+    Map<String, String> campos = const {},
+  }) async {
+    final peticion = http.MultipartRequest('POST', _uri(endpoint));
+    peticion.headers.addAll(_headers());
+    peticion.fields.addAll(campos);
+    for (final ruta in rutasArchivos) {
+      peticion.files.add(await http.MultipartFile.fromPath(campo, ruta));
+    }
+    // Hasta 10 archivos de 25 MB: se da más margen que en una subida simple.
+    return _enviarMultipart(peticion, limite: const Duration(minutes: 3));
+  }
+
+  Future<dynamic> _enviarMultipart(
+    http.MultipartRequest peticion, {
+    Duration limite = const Duration(seconds: 60),
+  }) async {
     late http.StreamedResponse enviada;
     try {
-      enviada = await peticion.send().timeout(const Duration(seconds: 60));
+      enviada = await peticion.send().timeout(limite);
     } on TimeoutException {
       throw ApiException(0, 'La subida tardó demasiado. Intenta de nuevo.');
     } catch (_) {
@@ -127,7 +151,13 @@ class ApiClient {
       throw ApiException(
           respuesta.statusCode, 'No se pudo descargar el archivo.');
     }
-    final archivo = File('${Directory.systemTemp.path}/$nombreSugerido');
+    // El nombre viene del servidor: se quitan separadores de ruta para que
+    // no pueda escribir fuera de la carpeta temporal.
+    final nombreSeguro = nombreSugerido
+        .replaceAll(RegExp(r'[\\/:*?"<>|]'), '_')
+        .replaceAll('..', '_');
+    final archivo = File(
+        '${Directory.systemTemp.path}/${nombreSeguro.isEmpty ? 'archivo' : nombreSeguro}');
     await archivo.writeAsBytes(respuesta.bodyBytes);
     return archivo;
   }

@@ -24,6 +24,8 @@ class AppDrawer extends StatelessWidget {
     _ItemMenu(Icons.folder_special_outlined, 'Mi Proyecto', 'Principal',
         'mi_proyecto'),
     _ItemMenu(Icons.layers_outlined, 'Ficha & Entregas', null, 'ficha'),
+    _ItemMenu(Icons.assignment_outlined, 'Actividades y entregas', 'Nuevo',
+        'actividades'),
     _ItemMenu(
         Icons.view_kanban_outlined, 'Backlog / Kanban', 'Plane', 'backlog'),
     _ItemMenu(Icons.description_outlined, 'Actas de Asesoría', null, 'actas'),
@@ -34,6 +36,8 @@ class AppDrawer extends StatelessWidget {
         Icons.school_outlined, 'Panel Docente', 'Cursos', 'mi_proyecto'),
     _ItemMenu(Icons.how_to_reg_outlined, 'Proyectos sin asesor', null,
         'sin_asesor'),
+    _ItemMenu(Icons.assignment_outlined, 'Actividades y entregas', 'Nuevo',
+        'actividades'),
   ];
 
   @override

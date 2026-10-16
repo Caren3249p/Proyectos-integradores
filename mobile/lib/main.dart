@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'core/tema_upb.dart';
 import 'screens/home_screen.dart';
 import 'screens/login_screen.dart';
+import 'services/actividad_service.dart';
 import 'services/api_client.dart';
 import 'services/backlog_service.dart';
 import 'services/proyecto_service.dart';
@@ -20,6 +21,7 @@ void main() {
         Provider<ProyectoService>(create: (_) => ProyectoService(api)),
         Provider<VersionService>(create: (_) => VersionService(api)),
         Provider<BacklogService>(create: (_) => BacklogService(api)),
+        Provider<ActividadService>(create: (_) => ActividadService(api)),
         ChangeNotifierProvider<Sesion>(
           create: (_) => Sesion(api: api)..restaurar(),
         ),
