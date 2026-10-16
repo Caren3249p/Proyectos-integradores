@@ -8,6 +8,7 @@ import '../services/proyecto_service.dart';
 import '../state/sesion.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/proyecto_card.dart';
+import 'actividades_screen.dart';
 import 'crear_proyecto_screen.dart';
 import 'docente_dashboard_screen.dart';
 import 'proyecto_detalle_screen.dart';
@@ -72,6 +73,14 @@ class _HomeScreenState extends State<HomeScreen> {
           MaterialPageRoute(
               builder: (_) => const ProyectosSinAsesorScreen()),
         ).then((_) => _recargar());
+        break;
+      case 'actividades':
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const ActividadesScreen()),
+        ).then((_) {
+          if (mounted) _recargar();
+        });
         break;
       case 'ficha':
         _irAFichaDelEstudiante(pestana: 0);
