@@ -52,7 +52,9 @@ export const AuthScreen = () => {
 
       await login(email.trim(), password, isRegister, nombre.trim());
     } catch (err) {
-      setError('Error al procesar la solicitud. Revisa tus credenciales.');
+      setError(err instanceof Error && err.message
+        ? err.message
+        : 'Error al procesar la solicitud. Revisa tus credenciales.');
     } finally {
       setIsLoading(false);
     }

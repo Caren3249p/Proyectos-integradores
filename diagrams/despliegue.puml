@@ -1,0 +1,62 @@
+@startuml
+title Diagrama de despliegue UML - Plataforma PI UPB
+
+skinparam shadowing false
+skinparam linetype polyline
+skinparam defaultTextAlignment center
+skinparam nodesep 90
+skinparam ranksep 100
+skinparam dpi 150
+skinparam packageStyle rectangle
+
+left to right direction
+
+node "Clientes" as clients {
+  artifact "Navegador web" as browser
+  artifact "Aplicación móvil\nFlutter" as mobile
+}
+
+node "Acceso público" as access {
+  node "Túnel HTTPS\nEntorno de desarrollo" as tunnel
+}
+
+node "Servidor de aplicación" as server {
+  node "Frontend web" as frontend {
+    artifact "SPA React + Vite\nTCP 3312" as spa
+  }
+
+  node "Backend" as backend {
+    artifact "API REST\nNode.js + Express\nTCP 3000" as api
+  }
+}
+
+node "Persistencia" as persistence {
+  database "PostgreSQL\nTCP 5432" as db
+  artifact "Evidencias\n/uploads" as files
+}
+
+cloud "Servicios externos" as external {
+  cloud "Plane API" as plane
+  cloud "GitHub API" as github
+  cloud "Chat SSO" as chat
+}
+
+browser -right-> tunnel : HTTPS
+mobile -right-> tunnel : HTTPS
+tunnel -right-> spa : HTTP
+tunnel -right-> api : HTTP
+spa -down-> api : REST / JSON / JWT
+mobile -down-> api : REST / JSON / JWT
+api -right-> db : Prisma / TCP
+api -right-> files : I/O
+api -right-> plane : HTTPS / API
+api -right-> github : HTTPS / OAuth
+api -right-> chat : HTTPS / SSO firmado
+
+legend bottom
+  UML Deployment Diagram
+  Los nodos representan recursos de ejecución.
+  Los artefactos representan software desplegado.
+  El túnel corresponde al entorno de desarrollo.
+endlegend
+@enduml

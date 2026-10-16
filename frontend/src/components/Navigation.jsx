@@ -9,13 +9,14 @@ import {
   Sparkles, 
   GraduationCap, 
   Layers,
-  Radio
-  , ClipboardCheck
+  Radio,
+  ClipboardCheck,
+  MessageSquare
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 
 export const Sidebar = () => {
-  const { user, currentView, setCurrentView, logout, backendConnected } = useApp();
+  const { user, currentView, setCurrentView, logout, backendConnected, abrirChat } = useApp();
 
   const isDocente = user?.rol === 'docente';
   const isAdmin = user?.rol === 'admin';
@@ -26,6 +27,7 @@ export const Sidebar = () => {
     { id: 'backlog_plane', label: 'Backlog / Kanban', icon: Kanban, badge: 'Plane' },
     { id: 'actas_seguimiento', label: 'Actas de Asesoria', icon: FileText },
     { id: 'entregables', label: 'Entregables y Coevaluacion', icon: ClipboardCheck },
+    { id: 'chat', label: 'Chat', icon: MessageSquare, action: () => abrirChat() },
   ];
 
   const menuDocente = [
@@ -34,11 +36,13 @@ export const Sidebar = () => {
     { id: 'evaluacion_proyecto', label: 'Evaluar Proyectos', icon: Award },
     { id: 'entregables', label: 'Entregables y Coevaluacion', icon: ClipboardCheck },
     { id: 'ficha_proyecto', label: 'Explorador Fichas', icon: Layers },
+    { id: 'chat', label: 'Chat', icon: MessageSquare, action: () => abrirChat() },
   ];
 
   const menuAdmin = [
     { id: 'dashboard_admin', label: 'Panel de Control', icon: Sliders, badge: 'Admin' },
     { id: 'ficha_proyecto', label: 'Explorador Global', icon: Layers },
+    { id: 'chat', label: 'Chat', icon: MessageSquare, action: () => abrirChat() },
   ];
 
   const currentMenu = isAdmin ? menuAdmin : isDocente ? menuDocente : menuEstudiante;
@@ -97,7 +101,7 @@ export const Sidebar = () => {
               <button
                 key={item.id}
                 type="button"
-                onClick={() => setCurrentView(item.id)}
+                onClick={() => item.action ? item.action() : setCurrentView(item.id)}
                 className={'w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-medium transition-all duration-200 group ' + 
                   (isActive
                     ? 'bg-gradient-to-r from-[#C8102E] to-[#A60D26] text-white shadow-lg shadow-[#C8102E]/25 translate-x-1 font-semibold'

@@ -1,6 +1,7 @@
 flowchart TB
   subgraph ClienteMobile [Nodo Cliente: Dispositivo Móvil / Desktop]
     B[Navegador Web SPA]
+    M[Aplicación móvil Flutter]
   end
 
   subgraph DevTunnels [Nodo Intermediario: Proxy Reverso]
@@ -9,22 +10,33 @@ flowchart TB
 
   subgraph ServidorLocal [Nodo Host: Máquina de Desarrollo]
     subgraph CapaPresentacion [Contenedor Frontend]
-      SPA[React + Vite\nPuerto TCP 3312]
+      SPA[React + Vite<br/>Puerto TCP 3312]
     end
-    
+
     subgraph CapaAplicacion [Contenedor Backend]
-      API[Node.js + Express\nPuerto TCP 3000]
+      API[Node.js + Express<br/>API REST<br/>Puerto TCP 3000]
     end
-    
+
     subgraph CapaDatos [Contenedor Persistencia]
-      DB[(PostgreSQL\nPuerto TCP 5432)]
-      FS[File System\n/uploads]
+      DB[(PostgreSQL<br/>Puerto TCP 5432)]
+      FS[Archivos de evidencias<br/>/uploads]
     end
   end
 
-  ClienteMobile -->|HTTPS Request| DevTunnels
-  DevTunnels -->|Port Forwarding| SPA
-  DevTunnels -->|Port Forwarding| API
-  SPA -->|REST API / JWT| API
-  API -->|TCP / Prisma Protocol| DB
+  subgraph ServiciosExternos [Servicios Externos]
+    P[Plane API]
+    G[GitHub API<br/>OAuth]
+    S[Chat externo<br/>SSO]
+  end
+
+  B -->|HTTPS| T
+  M -->|HTTPS| T
+  T -->|Port Forwarding HTTP| SPA
+  T -->|Port Forwarding HTTP| API
+  SPA -->|REST / JSON / JWT| API
+  M -->|REST / JSON / JWT| API
+  API -->|TCP / Prisma| DB
   API -->|I/O local| FS
+  API -->|HTTPS / X-API-Key| P
+  API -->|HTTPS / OAuth| G
+  API -->|HTTPS / SSO firmado| S

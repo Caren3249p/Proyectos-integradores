@@ -1,33 +1,40 @@
 sequenceDiagram
   autonumber
   actor D as Docente
-  participant API as :EvaluacionRouter
-  participant S as :EvaluacionService
-  participant DB as :PrismaClient
+  participant API as EvaluacionRouter
+  participant C as EvaluacionController
+  participant S as EvaluacionService
+  participant DB as Prisma
 
   D->>API: POST /api/proyectos/{id}/evaluaciones
   activate API
-  API->>S: crearEvaluacion(payload, idDocente)
+  API->>C: crear(req, res)
+  C->>S: crearEvaluacion(idProyecto, data, usuario)
   activate S
-  
-  S->>DB: findUnique({ id_rubrica })
+
+  S->>S: exigirDocente(usuario)
+  S->>DB: exigirProyecto(idProyecto)
+  DB-->>S: Proyecto
+  S->>DB: findUnique(id_rubrica + criterios + niveles)
   activate DB
-  DB-->>S: Array[CriteriosPlanos]
+  DB-->>S: Rubrica con criterios
   deactivate DB
-  
+
   S->>S: transformarPlanoAArbol()
-  S->>S: calcularNotaNodo(recursivo)
-  
-  S->>DB: evaluacion.create(nested: calificaciones)
+  S->>S: validar hojas calificables
+  S->>S: calcularNotaFinal Bottom-Up
+  S->>DB: $transaction(create Evaluacion + Calificaciones)
   activate DB
   alt Transacción Exitosa
-    DB-->>S: EvaluacionRecord
-    S-->>API: 201 Created (nota_final)
-    API-->>D: HTTP 201 JSON Response
-  else Fallo de Integridad
-    DB-->>S: PrismaClientKnownRequestError
-    S-->>API: Throw Error
-    API-->>D: HTTP 500 / 400
+    DB-->>S: Evaluación guardada
+    S-->>C: Evaluación + nota_final
+    C-->>API: HTTP 201 JSON
+    API-->>D: 201 Created
+  else Validación o integridad inválida
+    DB-->>S: Error
+    S-->>C: errorConEstado()
+    C-->>API: HTTP 400 / 403 / 404
+    API-->>D: Error JSON
   end
   deactivate DB
   deactivate S

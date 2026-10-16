@@ -9,6 +9,7 @@ import { FichaProyecto } from './pages/FichaProyecto';
 import { GestionRubricas } from './pages/GestionRubricas';
 import { EvaluacionProyecto } from './pages/EvaluacionProyecto';
 import { Entregables } from './pages/Entregables';
+import { TableroKanban } from './pages/TableroKanban';
 import { CheckCircle2, AlertCircle, Info } from 'lucide-react';
 
 export default function App() {
@@ -27,9 +28,10 @@ export default function App() {
       case 'dashboard_docente':
         return <DashboardDocente />;
       case 'ficha_proyecto':
-      case 'backlog_plane':
       case 'actas_seguimiento':
         return <FichaProyecto />;
+      case 'backlog_plane':
+        return <TableroKanban />;
       case 'gestion_rubricas':
         return <GestionRubricas />;
       case 'evaluacion_proyecto':

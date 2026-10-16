@@ -4,39 +4,61 @@ skinparam packageStyle rectangle
 skinparam shadowing false
 skinparam defaultTextAlignment center
 skinparam linetype ortho
+skinparam nodesep 45
+skinparam ranksep 55
 
-' Actores oficiales UML
 actor "Administrador" as Admin
 actor "Estudiante" as Estudiante
 actor "Docente" as Docente
 
 rectangle "Plataforma PI UPB" {
-  ' Casos de uso
-  usecase "Gestión Global del Catálogo" as UC7
-  usecase "Gestión de Ficha de Proyecto" as UC2
-  usecase "Subida de Versiones y Archivos" as UC3
-  usecase "Autenticación y Sesión" as UC1
-  usecase "Consulta de Backlog Kanban" as UC4
-  usecase "Diseño de Rúbricas Jerárquicas" as UC5
-  usecase "Cálculo de Evaluación Bottom-Up" as UC6
+  package "Acceso" {
+    usecase "Autenticarse y gestionar sesión" as UC1
+  }
 
-  ' Relaciones Administrador con flecha hacia el caso de uso
-  Admin -[hidden]- Estudiante
-  Admin --> UC7
-  Admin --> UC1
+  package "Gestión de proyectos" {
+    usecase "Gestionar ficha de proyecto" as UC2
+    usecase "Gestionar versiones y archivos" as UC3
+    usecase "Consultar backlog Kanban" as UC4
+  }
 
-  ' Relaciones Estudiante con flecha hacia el caso de uso
-  Estudiante -[hidden]- Docente
-  Estudiante --> UC2
-  Estudiante --> UC1
-  Estudiante --> UC4
-  UC3 .u.> UC2 : <<extend>>
+  package "Entregas y evaluación" {
+    usecase "Gestionar entregables y entregas" as UC8
+    usecase "Gestionar rúbricas jerárquicas" as UC5
+    usecase "Evaluar proyecto o entrega" as UC6
+    usecase "Realizar coevaluación" as UC9
+  }
 
-  ' Relaciones Docente con flecha hacia el caso de uso
-  Docente --> UC1
-  Docente --> UC4
-  Docente --> UC5
-  Docente --> UC6
-  UC6 .u.> UC5 : <<include>>
+  package "Administración" {
+    usecase "Gestionar catálogo y publicación" as UC7
+  }
+
+  ' Orden visual de los módulos.
+  UC1 -[hidden]right- UC2
+  UC2 -[hidden]right- UC8
+  UC8 -[hidden]right- UC7
+  UC3 -[hidden]down- UC4
+  UC5 -[hidden]right- UC6
+  UC8 -[hidden]down- UC9
+
+  Admin -right-> UC1
+  Admin -right-> UC7
+
+  Estudiante -right-> UC1
+  Estudiante -right-> UC2
+  Estudiante -right-> UC3
+  Estudiante -right-> UC4
+  Estudiante -right-> UC8
+  Estudiante -right-> UC9
+
+  Docente -right-> UC1
+  Docente -right-> UC4
+  Docente -right-> UC5
+  Docente -right-> UC6
+  Docente -right-> UC8
+
+  UC3 .up.> UC2 : <<extend>>
+  UC6 .up.> UC5 : <<include>>
+  UC9 .up.> UC8 : <<extend>>
 }
 @enduml

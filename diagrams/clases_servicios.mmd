@@ -1,4 +1,72 @@
 classDiagram
+  class Usuario {
+    +int id_usuario
+    +String nombre
+    +String correo
+    +String rol
+  }
+
+  class Proyecto {
+    +int id_proyecto
+    +String titulo
+    +String estado
+    +int porcentaje_avance
+    +crearVersion()
+  }
+
+  class IntegranteProyecto
+
+  class VersionProyecto {
+    +int id_version
+    +String numero
+    +Boolean es_final
+    +marcarFinal()
+  }
+
+  class Archivo {
+    +int id_archivo
+    +String nombre
+    +String extension
+    +int tamano
+  }
+
+  class Rubrica {
+    +int id_rubrica
+    +String nombre
+    +TipoRubrica tipo
+    +Boolean activa
+  }
+
+  class CriterioRubrica {
+    +int id_criterio
+    +Decimal peso
+    +TipoNodoRubrica tipo
+    +Boolean es_hoja
+  }
+
+  class Evaluacion {
+    +int id_evaluacion
+    +Decimal nota_final
+    +String estado
+  }
+
+  class CalificacionCriterio {
+    +int id_criterio
+    +Decimal nota
+  }
+
+  Usuario "1" --> "0..*" Proyecto : crea / asesora
+  Usuario "1" --> "0..*" IntegranteProyecto : participa
+  Proyecto "1" --> "0..*" IntegranteProyecto : contiene
+  Proyecto "1" --> "0..*" VersionProyecto : versiona
+  VersionProyecto "1" --> "0..*" Archivo : adjunta
+  Proyecto "1" --> "0..*" Evaluacion : recibe
+  Rubrica "1" --> "1..*" CriterioRubrica : compone
+  CriterioRubrica "0..1" --> "0..*" CriterioRubrica : tiene hijos
+  Rubrica "1" --> "0..*" Evaluacion : se aplica en
+  Evaluacion "1" --> "1..*" CalificacionCriterio : registra
+  CalificacionCriterio "*" --> "1" CriterioRubrica : califica
+
   class ProyectoService {
     +crearProyecto(datos: Object, idCreador: int) Promise~Object~
     +listarMisProyectos(usuario: Object) Promise~Array~
@@ -13,7 +81,7 @@ classDiagram
   }
 
   class EvaluacionService {
-    +crearEvaluacion(datos: Object, idDocente: int) Promise~Object~
+    +crearEvaluacion(idProyecto: int, datos: Object, usuario: Object) Promise~Object~
     +actualizarEvaluacion(id: int, datos: Object) Promise~Object~
     -calcularNotaNodo(nodo: Object, mapaNotas: Map) Decimal
   }
@@ -23,6 +91,7 @@ classDiagram
     +obtenerTareasPlane(idPlane: String) Promise~Array~
   }
 
-  EvaluacionService ..> RubricaService : <<use>> (estructura árbol)
-  EvaluacionService ..> ProyectoService : <<use>> (esIntegrante)
-  ProyectoService ..> PlaneService : <<use>> (sync backend-to-backend)
+  ProyectoService ..> PlaneService : sincroniza backlog
+  EvaluacionService ..> RubricaService : transforma árbol
+  EvaluacionService ..> ProyectoService : valida proyecto
+  VersionProyecto ..> ProyectoService : valida permisos

@@ -14,14 +14,15 @@ import {
   Code,
   Plus,
   ArrowRight,
-  FolderKanban
+  FolderKanban,
+  MessageSquare
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { Button, Badge, Card, FloatingInput } from '../components/UIComponents';
 import { ModalCrearProyecto } from '../components/ModalCrearProyecto';
 
 export const FichaProyecto = () => {
-  const { user, currentProject, currentProjectIssues, selectedTab, setSelectedTab, addVersion, addActa, addProjectTask, updateTaskState, syncProjectBacklog, showToast, deleteProject, addProjectMember, removeProjectMember } = useApp();
+  const { user, currentProject, currentProjectIssues, selectedTab, setSelectedTab, setCurrentView, addVersion, addActa, addProjectTask, updateTaskState, syncProjectBacklog, showToast, deleteProject, addProjectMember, removeProjectMember, abrirChat } = useApp();
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   // Sync Backlog con Plane al abrir el tab
@@ -169,6 +170,15 @@ export const FichaProyecto = () => {
         </div>
 
         <div className="flex items-center gap-3">
+          <Button
+            type="button"
+            variant="secondary"
+            icon={MessageSquare}
+            onClick={() => abrirChat({ tipo: 'proyecto', id: String(currentProject.id) })}
+            title="Abrir chat del proyecto"
+          >
+            Abrir Chat
+          </Button>
           {currentProject?.estado === 'borrador' && (
             <Button
               type="button"
@@ -203,7 +213,7 @@ export const FichaProyecto = () => {
           return (
             <button
               key={tab.id}
-              onClick={() => setSelectedTab(tab.id)}
+              onClick={() => tab.id === 'backlog' ? setCurrentView('backlog_plane') : setSelectedTab(tab.id)}
               className={'flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-semibold transition-all shrink-0 ' + 
                 (isActive 
                   ? 'bg-[#C8102E] text-white shadow-md shadow-[#C8102E]/25 -translate-y-0.5' 

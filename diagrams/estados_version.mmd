@@ -1,18 +1,23 @@
 stateDiagram-v2
-  [*] --> Abierta : POST /versiones (Creación vN.0)
-  
+  [*] --> Abierta : POST /proyectos/{id}/versiones
+
   state Abierta {
     [*] --> SinArchivos
-    SinArchivos --> ConArchivos : POST /archivos (adjuntar)
-    ConArchivos --> ConArchivos : POST /archivos (adjuntar adicional)
-    ConArchivos --> SinArchivos : DELETE /archivos (vaciar)
+    SinArchivos --> ConArchivos : POST /versiones/{id}/archivos
+    ConArchivos --> ConArchivos : Adjuntar archivo adicional
+    ConArchivos --> SinArchivos : Eliminar último archivo
   }
-  
-  Abierta --> Finalizada : PATCH es_final = true
-  
+
+  Abierta --> Finalizada : PATCH /versiones/{id}/final
+
   state Finalizada {
-    BloqueoMutacion : Las peticiones POST/DELETE/PUT son interceptadas.
-    BloqueoMutacion --> BloqueoMutacion : Retorno HTTP 403 / 400
+    [*] --> SoloLectura
+    SoloLectura --> SoloLectura : GET /versiones/{id}
+    SoloLectura --> SoloLectura : POST / DELETE / PUT rechazado
+    note right of SoloLectura
+      Las mutaciones se rechazan.
+      La versión conserva es_final = true.
+    end note
   }
-  
-  Finalizada --> [*]
+
+  Finalizada --> [*] : Proyecto continúa su ciclo

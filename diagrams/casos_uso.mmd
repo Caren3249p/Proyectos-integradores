@@ -1,0 +1,62 @@
+---
+title: Diagrama de casos de uso - Plataforma PI UPB
+---
+flowchart LR
+  %% Actores externos
+  ADM((Administrador))
+  EST((Estudiante))
+  DOC((Docente))
+
+  subgraph SISTEMA["Plataforma PI UPB"]
+    direction TB
+
+    subgraph ACCESO["Acceso"]
+      UC1(["Autenticarse y gestionar sesión"])
+    end
+
+    subgraph PROYECTOS["Gestión de proyectos"]
+      UC2(["Gestionar ficha de proyecto"])
+      UC3(["Gestionar versiones y archivos"])
+      UC4(["Consultar backlog Kanban"])
+    end
+
+    subgraph EVALUACION["Entregas y evaluación"]
+      UC8(["Gestionar entregables y entregas"])
+      UC5(["Gestionar rúbricas jerárquicas"])
+      UC6(["Evaluar proyecto o entrega"])
+      UC9(["Realizar coevaluación"])
+    end
+
+    subgraph ADMINISTRACION["Administración"]
+      UC7(["Gestionar catálogo y publicación"])
+    end
+
+    UC3 -. "extend" .-> UC2
+    UC6 -. "include" .-> UC5
+    UC9 -. "extend" .-> UC8
+  end
+
+  ADM --- UC1
+  ADM --- UC7
+
+  EST --- UC1
+  EST --- UC2
+  EST --- UC3
+  EST --- UC4
+  EST --- UC8
+  EST --- UC9
+
+  DOC --- UC1
+  DOC --- UC4
+  DOC --- UC5
+  DOC --- UC6
+  DOC --- UC8
+
+  classDef actor fill:#ffffff,stroke:#333333,stroke-width:2px,color:#222222;
+  classDef usecase fill:#9be3c0,stroke:#16805b,stroke-width:2px,color:#123b2b;
+  classDef boundary fill:#f8f8f8,stroke:#444444,stroke-width:2px,color:#222222;
+  classDef relation fill:none,stroke:#666666,stroke-width:1.5px;
+
+  class ADM,EST,DOC actor;
+  class UC1,UC2,UC3,UC4,UC5,UC6,UC7,UC8,UC9 usecase;
+  class SISTEMA boundary;
